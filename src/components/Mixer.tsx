@@ -425,17 +425,17 @@ export default function Mixer({
   };
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto 40px auto', padding: '0 24px' }}>
+    <div className="page-container" style={{ maxWidth: '1200px', margin: '0 auto 40px auto', padding: '0 16px' }}>
       
       {/* Header controls bar */}
       <div className="glass-panel" style={{
-        padding: '20px 24px',
+        padding: '16px 20px',
         display: 'flex',
         flexWrap: 'wrap',
         justifyContent: 'space-between',
         alignItems: 'center',
-        gap: '20px',
-        marginBottom: '24px'
+        gap: '14px',
+        marginBottom: '20px'
       }}>
         
         {/* Back Button and Title */}
@@ -509,8 +509,8 @@ export default function Mixer({
           </button>
 
           {/* Time scrubber */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '8px' }}>
-            <span style={{ fontSize: '0.8rem', fontFamily: 'monospace', color: 'var(--text-secondary)', width: '40px', textAlign: 'right' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '4px' }}>
+            <span style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--text-secondary)', width: '38px', textAlign: 'right' }}>
               {formatTime(currentTime)}
             </span>
             <input 
@@ -520,16 +520,16 @@ export default function Mixer({
               step={0.1}
               value={currentTime}
               onChange={handleSeek}
-              style={{ width: '160px' }}
+              style={{ width: 'clamp(80px, 20vw, 160px)' }}
             />
-            <span style={{ fontSize: '0.8rem', fontFamily: 'monospace', color: 'var(--text-muted)', width: '40px' }}>
+            <span style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--text-muted)', width: '38px' }}>
               {formatTime(duration)}
             </span>
           </div>
         </div>
 
         {/* Project Actions */}
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button 
             onClick={handleSaveSession}
             disabled={saving}
@@ -623,26 +623,23 @@ export default function Mixer({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           
           {/* Master Output Fader Card */}
-          <div className="glass-panel" style={{
-            padding: '16px 24px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
+          <div className="glass-panel mixer-master-row" style={{
+            padding: '16px 20px',
             borderLeft: '4px solid var(--accent-primary)',
             background: 'linear-gradient(90deg, rgba(0, 242, 254, 0.03) 0%, transparent 100%)'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ color: 'var(--accent-primary)', display: 'flex' }} className="pulse-glow">
-                <Volume2 size={24} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+              <div style={{ color: 'var(--accent-primary)', display: 'flex', flexShrink: 0 }} className="pulse-glow">
+                <Volume2 size={22} />
               </div>
-              <div>
-                <span style={{ fontSize: '1rem', fontWeight: 700 }}>Master Output Console</span>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Summed Stereo Mix Output</div>
+              <div style={{ minWidth: 0 }}>
+                <span style={{ fontSize: '0.95rem', fontWeight: 700 }}>Master Output Console</span>
+                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Summed Stereo Mix Output</div>
               </div>
             </div>
 
-            {/* Master Master Volume control */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flex: 1, maxWidth: '480px', margin: '0 40px' }}>
+            {/* Master Volume control */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: '160px' }}>
               <input 
                 type="range"
                 min={0}
@@ -652,17 +649,17 @@ export default function Mixer({
                 onChange={(e) => setMasterVolume(parseFloat(e.target.value))}
                 style={{ flex: 1 }}
               />
-              <span style={{ fontSize: '0.8rem', fontFamily: 'monospace', width: '36px', color: 'var(--accent-primary)', fontWeight: 700 }}>
+              <span style={{ fontSize: '0.8rem', fontFamily: 'monospace', width: '36px', color: 'var(--accent-primary)', fontWeight: 700, flexShrink: 0 }}>
                 {Math.round(masterVolume * 100)}%
               </span>
             </div>
 
-            {/* Master Analyzer Oscilloscope */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            {/* Master Oscilloscope */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
               <canvas 
                 ref={masterCanvasRef}
-                width={160}
-                height={40}
+                width={140}
+                height={38}
                 style={{
                   backgroundColor: 'var(--bg-secondary)',
                   border: '1px solid var(--card-border)',
