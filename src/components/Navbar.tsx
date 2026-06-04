@@ -14,35 +14,37 @@ export default function Navbar({ darkMode, setDarkMode, user, onLogout, isPlayin
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center',
-      padding: '12px 24px',
-      margin: '16px auto',
+      padding: '10px 16px',
+      margin: '12px auto',
       maxWidth: '1200px',
-      width: 'calc(100% - 32px)',
+      width: 'calc(100% - 24px)',
       position: 'sticky',
-      top: '16px',
+      top: '12px',
       zIndex: 100
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      {/* Brand */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
         <div className="glow-btn" style={{
-          padding: '8px',
+          padding: '7px',
           borderRadius: '50%',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center'
+          justifyContent: 'center',
+          flexShrink: 0
         }}>
-          <Music size={20} className={isPlaying ? "spin-slow" : ""} />
+          <Music size={18} className={isPlaying ? "spin-slow" : ""} />
         </div>
-        <div>
-          <span className="brand-title" style={{ fontSize: '1.25rem', letterSpacing: '0.5px' }}>
+        <div style={{ minWidth: 0 }}>
+          <span className="brand-title" style={{ fontSize: '1.1rem', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
             Sonic<span style={{ color: 'var(--accent-primary)' }}>Wave</span>
           </span>
-          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+          <div className="brand-subtitle" style={{ fontSize: '0.6rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
             Multi-Track Studio & DSP
           </div>
         </div>
 
         {isPlaying && (
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '14px', marginLeft: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '14px', marginLeft: '8px', flexShrink: 0 }}>
             <div style={{ width: '2px', height: '100%', background: 'var(--accent-primary)', animation: 'pulseGlow 0.5s ease infinite alternate' }}></div>
             <div style={{ width: '2px', height: '60%', background: 'var(--accent-primary)', animation: 'pulseGlow 0.4s ease infinite alternate 0.1s' }}></div>
             <div style={{ width: '2px', height: '80%', background: 'var(--accent-primary)', animation: 'pulseGlow 0.6s ease infinite alternate 0.2s' }}></div>
@@ -51,16 +53,17 @@ export default function Navbar({ darkMode, setDarkMode, user, onLogout, isPlayin
         )}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-        {/* Theme Toggle Button */}
-        <button 
+      {/* Right side actions */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+        {/* Theme Toggle */}
+        <button
           onClick={() => setDarkMode(!darkMode)}
           style={{
             background: 'none',
             border: 'none',
             color: 'var(--text-secondary)',
             cursor: 'pointer',
-            padding: '8px',
+            padding: '7px',
             borderRadius: '8px',
             display: 'flex',
             alignItems: 'center',
@@ -70,64 +73,66 @@ export default function Navbar({ darkMode, setDarkMode, user, onLogout, isPlayin
           className="hover-lift"
           title="Toggle Light/Dark Theme"
         >
-          {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+          {darkMode ? <Sun size={16} /> : <Moon size={16} />}
         </button>
 
-        {/* User Profile / Guest Section */}
+        {/* User / Guest */}
         {user ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                 Account
               </span>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+              {/* Email hidden on mobile via CSS */}
+              <span className="navbar-user-email" style={{ fontSize: '0.65rem', color: 'var(--text-muted)', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {user.email}
               </span>
             </div>
             <div style={{
-              width: '32px',
-              height: '32px',
+              width: '30px',
+              height: '30px',
               borderRadius: '50%',
               backgroundColor: 'var(--card-border)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'var(--accent-primary)'
+              color: 'var(--accent-primary)',
+              flexShrink: 0
             }}>
-              <User size={16} />
+              <User size={14} />
             </div>
-            <button 
+            <button
               onClick={onLogout}
               style={{
                 background: 'none',
                 border: 'none',
                 color: 'var(--accent-pink)',
                 cursor: 'pointer',
-                padding: '8px',
+                padding: '6px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
-                fontSize: '0.8rem',
-                fontWeight: 600
+                gap: '4px',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                whiteSpace: 'nowrap'
               }}
               className="hover-lift"
             >
-              <LogOut size={16} />
-              Sign Out
+              <LogOut size={14} />
+              <span style={{ display: 'var(--logout-text-display, inline)' }}>Sign Out</span>
             </button>
           </div>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{
-              padding: '4px 10px',
-              borderRadius: '12px',
-              backgroundColor: 'var(--card-border)',
-              fontSize: '0.7rem',
-              fontWeight: 600,
-              color: 'var(--text-secondary)'
-            }}>
-              Studio Guest Mode
-            </div>
+          <div style={{
+            padding: '4px 10px',
+            borderRadius: '12px',
+            backgroundColor: 'var(--card-border)',
+            fontSize: '0.65rem',
+            fontWeight: 600,
+            color: 'var(--text-secondary)',
+            whiteSpace: 'nowrap'
+          }}>
+            Guest Mode
           </div>
         )}
       </div>

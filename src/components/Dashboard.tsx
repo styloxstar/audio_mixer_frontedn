@@ -347,7 +347,7 @@ export default function Dashboard({ token, onOpenSession }: DashboardProps) {
   };
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '0 auto 40px auto', padding: '0 24px' }}>
+    <div className="page-container" style={{ maxWidth: '1200px', margin: '0 auto 40px auto', padding: '0 16px' }}>
       
       {/* Messages */}
       {error && (
@@ -363,7 +363,7 @@ export default function Dashboard({ token, onOpenSession }: DashboardProps) {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '30px' }}>
+      <div className="dashboard-grid">
         
         {/* Left Column: Create & Load Projects */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
@@ -374,7 +374,7 @@ export default function Dashboard({ token, onOpenSession }: DashboardProps) {
               <FolderPlus size={18} style={{ color: 'var(--accent-primary)' }} />
               New Mixing Session
             </h3>
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div className="new-session-row">
               <input
                 type="text"
                 placeholder="e.g. Synthwave Mix #1"
@@ -388,10 +388,11 @@ export default function Dashboard({ token, onOpenSession }: DashboardProps) {
                   backgroundColor: 'var(--bg-secondary)',
                   color: 'var(--text-primary)',
                   fontSize: '0.85rem',
-                  outline: 'none'
+                  outline: 'none',
+                  minWidth: 0
                 }}
               />
-              <button onClick={handleCreateSession} className="glow-btn">
+              <button onClick={handleCreateSession} className="glow-btn" style={{ flexShrink: 0 }}>
                 Create
               </button>
             </div>
@@ -459,9 +460,9 @@ export default function Dashboard({ token, onOpenSession }: DashboardProps) {
         {/* Right Column: Audio Library */}
         <div className="glass-panel" style={{ padding: '28px' }}>
           
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.25rem' }}>
-              <Music size={20} style={{ color: 'var(--accent-primary)' }} />
+          <div className="library-header">
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem' }}>
+              <Music size={18} style={{ color: 'var(--accent-primary)' }} />
               Audio Library
             </h3>
 
@@ -478,9 +479,9 @@ export default function Dashboard({ token, onOpenSession }: DashboardProps) {
               onClick={() => fileInputRef.current?.click()} 
               className="glow-btn"
               disabled={uploading}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', fontSize: '0.85rem' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 14px', fontSize: '0.82rem' }}
             >
-              <Upload size={16} />
+              <Upload size={15} />
               {uploading ? 'Processing...' : 'Upload Track'}
             </button>
           </div>
@@ -498,41 +499,29 @@ export default function Dashboard({ token, onOpenSession }: DashboardProps) {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {preloadedStems.map(stem => (
-                  <div key={stem._id} style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '12px 16px',
-                    borderRadius: '10px',
+                  <div key={stem._id} className="track-item-row" style={{
                     backgroundColor: 'rgba(127, 0, 255, 0.05)',
                     border: '1px solid rgba(127, 0, 255, 0.15)'
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ color: 'var(--accent-secondary)' }}>
-                        <FileAudio size={20} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                      <div style={{ color: 'var(--accent-secondary)', flexShrink: 0 }}>
+                        <FileAudio size={18} />
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{stem.title}</span>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Demo Loop Stem</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stem.title}</span>
+                        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Demo Loop Stem</span>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '0.7rem', backgroundColor: 'var(--accent-secondary)', color: 'white', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                      <span style={{ fontSize: '0.65rem', backgroundColor: 'var(--accent-secondary)', color: 'white', padding: '2px 7px', borderRadius: '10px', fontWeight: 600, whiteSpace: 'nowrap' }}>
                         Preloaded
                       </span>
                       <button 
                         onClick={() => handleQuickMix(stem)}
                         className="glow-btn"
-                        style={{
-                          padding: '6px 12px',
-                          fontSize: '0.75rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          borderRadius: '6px'
-                        }}
+                        style={{ padding: '5px 10px', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '5px', borderRadius: '6px' }}
                       >
-                        <Sliders size={12} />
+                        <Sliders size={11} />
                         Mix
                       </button>
                     </div>
@@ -569,54 +558,36 @@ export default function Dashboard({ token, onOpenSession }: DashboardProps) {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '320px', overflowY: 'auto' }}>
                   {tracks.map(track => (
-                    <div key={track._id} style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '12px 16px',
-                      borderRadius: '10px',
+                    <div key={track._id} className="track-item-row" style={{
                       backgroundColor: 'var(--bg-secondary)',
                       border: '1px solid var(--card-border)'
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ color: 'var(--accent-primary)' }}>
-                          <FileAudio size={20} />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                        <div style={{ color: 'var(--accent-primary)', flexShrink: 0 }}>
+                          <FileAudio size={18} />
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{track.title}</span>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                            Size: {(track.size / (1024 * 1024)).toFixed(2)} MB • {track.filename.split('.').pop()?.toUpperCase()}
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.title}</span>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                            {(track.size / (1024 * 1024)).toFixed(1)} MB • {track.filename.split('.').pop()?.toUpperCase()}
                           </span>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                         <button 
                           onClick={() => handleQuickMix(track)}
                           className="glow-btn"
-                          style={{
-                            padding: '6px 12px',
-                            fontSize: '0.75rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            borderRadius: '6px'
-                          }}
+                          style={{ padding: '5px 10px', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '5px', borderRadius: '6px' }}
                         >
-                          <Sliders size={12} />
+                          <Sliders size={11} />
                           Mix
                         </button>
                         <button 
                           onClick={() => handleDeleteTrack(track._id, (track as any).isGuestUrl)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: 'var(--text-muted)',
-                            cursor: 'pointer',
-                            padding: '6px'
-                          }}
+                          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '6px', flexShrink: 0 }}
                           className="hover-lift"
                         >
-                          <Trash2 size={16} style={{ color: 'var(--accent-pink)' }} />
+                          <Trash2 size={15} style={{ color: 'var(--accent-pink)' }} />
                         </button>
                       </div>
                     </div>
