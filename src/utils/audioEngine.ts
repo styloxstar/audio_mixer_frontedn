@@ -45,6 +45,12 @@ class AudioEngine {
   private isPlaying = false;
   private onTimeUpdateCallback: (() => void) | null = null;
 
+  // Atmosphere handling
+  private atmospheresMap: Map<string, {
+    audioElement: HTMLAudioElement;
+    gainNode: GainNode;
+  }> = new Map();
+
   init() {
     if (this.ctx) return;
     
@@ -219,6 +225,63 @@ class AudioEngine {
     this.stopAll();
     for (const [id] of this.tracksMap) {
       this.removeTrack(id);
+    }
+    for (const [id] of this.atmospheresMap) {
+      this.stopAtmosphere(id);
+    }
+  }
+
+  // --- ATMOSPHERE CONTROLS ---
+
+  playAtmosphere(id: string, url: string, volume: number = 0.5) {
+    this.init();
+    if (!this.ctx || !this.masterGain) return;
+
+    if (this.atmospheresMap.has(id)) {
+      this.stopAtmosphere(id);
+    }
+
+    const audio = new Audio();
+    audio.src = url;
+    audio.crossOrigin = 'anonymous';
+    audio.loop = true; // Atmosphere always loops
+    audio.volume = 1.0; // Handled by GainNode instead
+
+    const sourceNode = this.ctx.createMediaElementSource(audio);
+    const gainNode = this.ctx.createGain();
+    gainNode.gain.setValueAtTime(volume, this.ctx.currentTime);
+
+    sourceNode.connect(gainNode);
+    gainNode.connect(this.masterGain);
+
+    this.atmospheresMap.set(id, { audioElement: audio, gainNode });
+
+    // Sync state with main transport if currently playing
+    if (this.isPlaying) {
+      audio.play().catch(e => console.warn('Atmosphere play failed:', e));
+    }
+  }
+
+  pauseAtmosphere(id: string) {
+    const atmo = this.atmospheresMap.get(id);
+    if (atmo) {
+      atmo.audioElement.pause();
+    }
+  }
+
+  stopAtmosphere(id: string) {
+    const atmo = this.atmospheresMap.get(id);
+    if (atmo) {
+      atmo.audioElement.pause();
+      atmo.audioElement.src = '';
+      this.atmospheresMap.delete(id);
+    }
+  }
+
+  updateAtmosphereVolume(id: string, volume: number) {
+    const atmo = this.atmospheresMap.get(id);
+    if (atmo && this.ctx) {
+      atmo.gainNode.gain.setTargetAtTime(volume, this.ctx.currentTime, 0.1);
     }
   }
 
@@ -426,7 +489,9 @@ class AudioEngine {
       }
       track.audioElement.play().catch(err => console.warn('Audio play failed:', err));
     }
-
+    for (const [_, atmo] of this.atmospheresMap) {
+      atmo.audioElement.play().catch(e => console.warn(e));
+    }
     this.isPlaying = true;
   }
 
@@ -434,15 +499,15 @@ class AudioEngine {
     for (const [_, track] of this.tracksMap) {
       track.audioElement.pause();
     }
+    for (const [_, atmo] of this.atmospheresMap) {
+      atmo.audioElement.pause();
+    }
     this.isPlaying = false;
   }
 
   stopAll() {
-    for (const [_, track] of this.tracksMap) {
-      track.audioElement.pause();
-      track.audioElement.currentTime = 0;
-    }
-    this.isPlaying = false;
+    this.pauseAll();
+    this.seekAll(0);
     if (this.onTimeUpdateCallback) this.onTimeUpdateCallback();
   }
 

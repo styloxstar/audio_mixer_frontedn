@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Play, Pause, Square, Save, Download, Volume2, ArrowLeft, Settings, Music, RefreshCw } from 'lucide-react';
+import { Play, Pause, Square, Save, Download, Volume2, ArrowLeft, Settings, Music, RefreshCw, CloudRain } from 'lucide-react';
 import audioEngine from '../utils/audioEngine';
 import type { TrackNodeState } from '../utils/audioEngine';
 import API_BASE_URL from '../utils/api';
@@ -42,6 +42,30 @@ export default function Mixer({
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [expandedTrackId, setExpandedTrackId] = useState<string | null>(null);
+
+  // Atmosphere State
+  const [atmospheres, setAtmospheres] = useState([
+    { id: 'atmo_rain', name: 'Rain', url: '/fx/rain.wav', active: false, volume: 0.4 },
+    { id: 'atmo_storm', name: 'Thunderstorm', url: '/fx/storm.wav', active: false, volume: 0.6 },
+    { id: 'atmo_ocean', name: 'Ocean', url: '/fx/ocean.wav', active: false, volume: 0.5 },
+    { id: 'atmo_deep_ocean', name: 'Deep Ocean', url: '/fx/deep_ocean.wav', active: false, volume: 0.6 },
+    { id: 'atmo_wind', name: 'Wind', url: '/fx/wind.wav', active: false, volume: 0.4 },
+    { id: 'atmo_slow_wind', name: 'Slow Wind', url: '/fx/slow_wind.wav', active: false, volume: 0.5 },
+    { id: 'atmo_water', name: 'Stream', url: '/fx/water.wav', active: false, volume: 0.5 },
+    { id: 'atmo_river', name: 'River', url: '/fx/river.wav', active: false, volume: 0.6 },
+    { id: 'atmo_birds', name: 'Morning Birds', url: '/fx/birds.wav', active: false, volume: 0.4 },
+    { id: 'atmo_crickets', name: 'Night Crickets', url: '/fx/crickets.wav', active: false, volume: 0.3 },
+    { id: 'atmo_moon', name: 'Calm Moon', url: '/fx/moon.wav', active: false, volume: 0.5 },
+    { id: 'atmo_mountain', name: 'Mountains', url: '/fx/mountain.wav', active: false, volume: 0.6 },
+    { id: 'atmo_deep_mountain', name: 'Deep Mountains', url: '/fx/deep_mountain.wav', active: false, volume: 0.7 },
+    { id: 'atmo_temple', name: 'Temple Bowls', url: '/fx/temple.wav', active: false, volume: 0.6 },
+    { id: 'atmo_bin_alpha', name: 'Binaural (Alpha 10Hz - Relax)', url: '/fx/binaural_alpha.wav', active: false, volume: 0.5 },
+    { id: 'atmo_bin_theta', name: 'Binaural (Theta 6Hz - Meditate)', url: '/fx/binaural_theta.wav', active: false, volume: 0.5 },
+    { id: 'atmo_bin_delta', name: 'Binaural (Delta 3Hz - Sleep)', url: '/fx/binaural_delta.wav', active: false, volume: 0.5 },
+    { id: 'atmo_bin_beta', name: 'Binaural (Beta 20Hz - Focus)', url: '/fx/binaural_beta.wav', active: false, volume: 0.5 },
+    { id: 'atmo_freq_528', name: '528Hz (DNA Repair)', url: '/fx/freq_528hz.wav', active: false, volume: 0.4 },
+    { id: 'atmo_freq_432', name: '432Hz (Earth Tone)', url: '/fx/freq_432hz.wav', active: false, volume: 0.4 },
+  ]);
 
   // References for drawing real-time VU visualizers
   const canvasRefs = useRef<{ [key: string]: HTMLCanvasElement | null }>({});
@@ -409,12 +433,29 @@ export default function Mixer({
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(downloadUrl);
-    } catch (error: any) {
-      console.error(error);
-      alert(`Export failed: ${error.message || error}`);
+    } catch (e) {
+      alert('Mixdown failed. See console.');
     } finally {
       setExporting(false);
     }
+  };
+
+  const handleToggleAtmosphere = (id: string) => {
+    const atmo = atmospheres.find(a => a.id === id);
+    if (!atmo) return;
+    
+    if (atmo.active) {
+      audioEngine.stopAtmosphere(id);
+    } else {
+      audioEngine.playAtmosphere(id, atmo.url, atmo.volume);
+    }
+    
+    setAtmospheres(prev => prev.map(a => a.id === id ? { ...a, active: !a.active } : a));
+  };
+
+  const handleAtmosphereVolumeChange = (id: string, volume: number) => {
+    audioEngine.updateAtmosphereVolume(id, volume);
+    setAtmospheres(prev => prev.map(a => a.id === id ? { ...a, volume } : a));
   };
 
   const formatTime = (timeSec: number) => {
@@ -904,6 +945,65 @@ export default function Mixer({
                 </div>
               );
             })}
+          </div>
+
+          {/* Atmosphere / Environmental Effects Rack */}
+          <div style={{ marginTop: '24px' }}>
+            <h3 style={{ fontSize: '1.2rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <CloudRain size={20} color="var(--accent-primary)" />
+              Environmental Effects & Binaural
+            </h3>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+              {atmospheres.map(atmo => (
+                <div key={atmo.id} className="glass-panel" style={{
+                  padding: '16px 20px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                  border: atmo.active ? '1px solid var(--accent-primary)' : '1px solid var(--card-border)'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 600, fontSize: '0.9rem', color: atmo.active ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                      {atmo.name}
+                    </span>
+                    
+                    <button
+                      onClick={() => handleToggleAtmosphere(atmo.id)}
+                      style={{
+                        padding: '4px 12px',
+                        borderRadius: '12px',
+                        backgroundColor: atmo.active ? 'var(--accent-primary)' : 'transparent',
+                        border: atmo.active ? 'none' : '1px solid var(--text-muted)',
+                        color: atmo.active ? '#000' : 'var(--text-primary)',
+                        fontSize: '0.75rem',
+                        fontWeight: 'bold',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {atmo.active ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <Volume2 size={16} color="var(--text-muted)" />
+                    <input
+                      type="range"
+                      min={0}
+                      max={1.0}
+                      step={0.01}
+                      value={atmo.volume}
+                      onChange={(e) => handleAtmosphereVolumeChange(atmo.id, parseFloat(e.target.value))}
+                      style={{ flex: 1 }}
+                      disabled={!atmo.active}
+                    />
+                    <span style={{ fontSize: '0.7rem', width: '30px', textAlign: 'right' }}>
+                      {Math.round(atmo.volume * 100)}%
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
         </div>
