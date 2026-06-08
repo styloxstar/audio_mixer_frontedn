@@ -42,6 +42,7 @@ export default function Mixer({
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [expandedTrackId, setExpandedTrackId] = useState<string | null>(null);
+  const [selectedTrackIds, setSelectedTrackIds] = useState<string[]>([]);
 
   // Atmosphere State
   const [atmospheres, setAtmospheres] = useState([
@@ -249,14 +250,25 @@ export default function Mixer({
         await audioEngine.addTrack(newTrackState);
         setTracksListState(prev => [...prev, newTrackState]);
       } catch (err) {
-        console.error(err);
-        alert('Failed to load track into mixer');
+        alert('Failed to load audio for ' + libTrack.title);
       } finally {
         setLoadingTracks(false);
       }
     }
   };
 
+  const handleToggleSelect = (id: string) => {
+    setSelectedTrackIds(prev => 
+      prev.includes(id) ? prev.filter(tid => tid !== id) : [...prev, id]
+    );
+  };
+
+  // @ts-ignore
+  const handleRemoveTrack = (id: string) => {
+    audioEngine.removeTrack(id);
+    const updated = tracksListState.filter(t => t.id !== id);
+    setTracksListState(updated);
+  };
   // Render visualizers using canvas API
   const startVisualizers = () => {
     const draw = () => {
@@ -435,6 +447,26 @@ export default function Mixer({
       URL.revokeObjectURL(downloadUrl);
     } catch (e) {
       alert('Mixdown failed. See console.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportStems = async () => {
+    if (tracksListState.length === 0) return;
+    setExporting(true);
+    try {
+      const blob = await audioEngine.exportStemsAsZip(tracksListState, 'wav');
+      const downloadUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `${session.name.replace(/\s+/g, '_')}_Stems.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
+    } catch (e) {
+      alert('Stem export failed. See console.');
     } finally {
       setExporting(false);
     }
@@ -649,6 +681,37 @@ export default function Mixer({
               </>
             )}
           </button>
+
+          <button 
+            onClick={handleExportStems}
+            disabled={exporting}
+            className="hover-lift"
+            style={{
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--accent-primary)',
+              borderRadius: '8px',
+              padding: '10px 16px',
+              color: 'var(--accent-primary)',
+              fontWeight: 600,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+          >
+            {exporting ? (
+              <>
+                <RefreshCw size={16} className="spin-slow" />
+                Zipping...
+              </>
+            ) : (
+              <>
+                <Download size={16} />
+                Download Stems (ZIP)
+              </>
+            )}
+          </button>
         </div>
 
       </div>
@@ -789,6 +852,13 @@ export default function Mixer({
                     
                     {/* 1. Channel Name and Icon */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px', width: '220px' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={selectedTrackIds.includes(track.id)}
+                        onChange={() => handleToggleSelect(track.id)}
+                        style={{ cursor: 'pointer', width: '18px', height: '18px', accentColor: 'var(--accent-primary)' }}
+                        title="Select for Bulk DSP"
+                      />
                       <div style={{
                         width: '40px',
                         height: '40px',
@@ -937,6 +1007,7 @@ export default function Mixer({
                         trackId={track.id}
                         tracksListState={tracksListState}
                         setTracksListState={setTracksListState}
+                        selectedTrackIds={selectedTrackIds}
                         inline={true}
                       />
                     </div>

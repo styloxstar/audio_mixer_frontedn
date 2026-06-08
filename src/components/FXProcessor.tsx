@@ -6,6 +6,7 @@ interface FXProcessorProps {
   trackId: string;
   tracksListState: TrackNodeState[];
   setTracksListState: React.Dispatch<React.SetStateAction<TrackNodeState[]>>;
+  selectedTrackIds?: string[];
   onBack?: () => void;
   inline?: boolean;
 }
@@ -14,6 +15,7 @@ export default function FXProcessor({
   trackId,
   tracksListState,
   setTracksListState,
+  selectedTrackIds = [],
   onBack,
   inline = false
 }: FXProcessorProps) {
@@ -108,11 +110,44 @@ export default function FXProcessor({
     setTracksListState(updated);
   };
 
+  const handleApplyToAll = () => {
+    if (!track) return;
+    const hasSelection = selectedTrackIds.length > 0;
+    
+    const updated = tracksListState.map(t => {
+      if (t.id === trackId) return t;
+      if (hasSelection && !selectedTrackIds.includes(t.id)) return t;
+      
+      // Apply engine updates
+      audioEngine.updateTrackEQ(t.id, track.eqLow, track.eqMid, track.eqHigh);
+      audioEngine.updateTrackVocalMode(t.id, track.vocalExtraction);
+      audioEngine.updateTrackNoiseGate(t.id, track.noiseGateThreshold);
+      audioEngine.updateTrack8D(t.id, track.pan8dEnabled, track.pan8dSpeed);
+      audioEngine.updateTrackPlaybackRate(t.id, track.playbackRate);
+      audioEngine.updateTrackLofi(t.id, track.lofiEnabled);
+
+      return {
+        ...t,
+        eqLow: track.eqLow,
+        eqMid: track.eqMid,
+        eqHigh: track.eqHigh,
+        vocalExtraction: track.vocalExtraction,
+        noiseGateThreshold: track.noiseGateThreshold,
+        pan8dEnabled: track.pan8dEnabled,
+        pan8dSpeed: track.pan8dSpeed,
+        playbackRate: track.playbackRate,
+        lofiEnabled: track.lofiEnabled
+      };
+    });
+    setTracksListState(updated);
+    alert(hasSelection ? 'Applied these FX settings to SELECTED tracks!' : 'Applied these FX settings to ALL tracks!');
+  };
+
   return (
     <div style={inline ? { width: '100%' } : { maxWidth: '1000px', margin: '0 auto 40px auto', padding: '0 24px' }}>
       
       {/* Header */}
-      {!inline && onBack && (
+      {!inline && onBack ? (
         <div className="glass-panel" style={{
           padding: '16px 24px',
           display: 'flex',
@@ -139,12 +174,49 @@ export default function FXProcessor({
             Back to Mixer
           </button>
 
-          <div style={{ textAlign: 'right' }}>
-            <h2 style={{ fontSize: '1.2rem' }}>{track.title}</h2>
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-              DSP EFFECTS CONTROL BOARD
-            </span>
+          <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <button 
+              onClick={handleApplyToAll}
+              className="hover-lift"
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                border: '1px solid var(--accent-primary)',
+                background: 'rgba(0, 242, 254, 0.1)',
+                color: 'var(--accent-primary)',
+                cursor: 'pointer',
+                fontSize: '0.8rem',
+                fontWeight: 600
+              }}
+            >
+              {selectedTrackIds.length > 0 ? 'Bulk Apply FX to SELECTED' : 'Bulk Apply FX to ALL'}
+            </button>
+            <div>
+              <h2 style={{ fontSize: '1.2rem' }}>{track.title}</h2>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                DSP EFFECTS CONTROL BOARD
+              </span>
+            </div>
           </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+          <button 
+            onClick={handleApplyToAll}
+            className="hover-lift"
+            style={{
+              padding: '6px 12px',
+              borderRadius: '6px',
+              border: '1px solid var(--accent-primary)',
+              background: 'rgba(0, 242, 254, 0.1)',
+              color: 'var(--accent-primary)',
+              cursor: 'pointer',
+              fontSize: '0.8rem',
+              fontWeight: 600
+            }}
+          >
+            {selectedTrackIds.length > 0 ? 'Bulk Apply FX to SELECTED' : 'Bulk Apply FX to ALL'}
+          </button>
         </div>
       )}
 

@@ -42,8 +42,15 @@ class AudioEngine {
 
   private masterGain: GainNode | null = null;
   private masterAnalyser: AnalyserNode | null = null;
-  private isPlaying = false;
-  private onTimeUpdateCallback: (() => void) | null = null;
+  public analyserDataArray: Uint8Array = new Uint8Array(0);
+  public isPlaying: boolean = false;
+  
+  // Limiter / Smooth Blending
+  public limiterEnabled: boolean = true;
+  private limiterNode: DynamicsCompressorNode | null = null;
+
+  // Callbacks
+  public onTimeUpdateCallback: (() => void) | null = null;
 
   // Atmosphere handling
   private atmospheresMap: Map<string, {
@@ -60,13 +67,24 @@ class AudioEngine {
     
     // Setup Master Volume Gain Node
     this.masterGain = this.ctx.createGain();
-    this.masterGain.gain.setValueAtTime(1.0, this.ctx.currentTime);
+    this.masterGain.gain.value = 1.0;
+
+    // Create Limiter (Compressor)
+    this.limiterNode = this.ctx.createDynamicsCompressor();
+    this.limiterNode.threshold.value = -3.0; // Starts limiting near peak
+    this.limiterNode.knee.value = 12.0; // Soft knee
+    this.limiterNode.ratio.value = 20.0; // Hard ratio to prevent clipping
+    this.limiterNode.attack.value = 0.005; // Fast attack
+    this.limiterNode.release.value = 0.1; // Smooth release
     
-    // Setup Master Analyser Node
     this.masterAnalyser = this.ctx.createAnalyser();
     this.masterAnalyser.fftSize = 256;
-    
-    this.masterGain.connect(this.masterAnalyser);
+    const bufferLength = this.masterAnalyser.frequencyBinCount;
+    this.analyserDataArray = new Uint8Array(bufferLength);
+
+    // Routing: Master Gain -> Limiter -> Analyser -> Destination
+    this.masterGain.connect(this.limiterNode);
+    this.limiterNode.connect(this.masterAnalyser);
     this.masterAnalyser.connect(this.ctx.destination);
 
     // Set up global time tracking
@@ -249,7 +267,10 @@ class AudioEngine {
 
     const sourceNode = this.ctx.createMediaElementSource(audio);
     const gainNode = this.ctx.createGain();
-    gainNode.gain.setValueAtTime(volume, this.ctx.currentTime);
+    
+    // Fade in
+    gainNode.gain.setValueAtTime(0.001, this.ctx.currentTime);
+    gainNode.gain.setTargetAtTime(volume, this.ctx.currentTime, 0.5);
 
     sourceNode.connect(gainNode);
     gainNode.connect(this.masterGain);
@@ -271,10 +292,18 @@ class AudioEngine {
 
   stopAtmosphere(id: string) {
     const atmo = this.atmospheresMap.get(id);
-    if (atmo) {
-      atmo.audioElement.pause();
-      atmo.audioElement.src = '';
-      this.atmospheresMap.delete(id);
+    if (atmo && this.ctx) {
+      // Fade out to avoid click
+      atmo.gainNode.gain.setTargetAtTime(0.001, this.ctx.currentTime, 0.5);
+      
+      // Remove after fade
+      setTimeout(() => {
+        if (this.atmospheresMap.has(id)) {
+          atmo.audioElement.pause();
+          atmo.audioElement.src = '';
+          this.atmospheresMap.delete(id);
+        }
+      }, 2000);
     }
   }
 
@@ -289,28 +318,29 @@ class AudioEngine {
 
   updateTrackVolume(id: string, volume: number, mute: boolean) {
     const track = this.tracksMap.get(id);
-    if (track) {
-      const targetVolume = mute ? 0 : volume;
-      track.gainNode.gain.setValueAtTime(targetVolume, this.ctx!.currentTime);
+    if (track && this.ctx) {
+      const targetVolume = mute ? 0.001 : Math.max(0.001, volume); // Keep strictly above 0 to prevent issues
+      // Exponential approach over ~100ms prevents zipper noise and abrupt choppiness
+      track.gainNode.gain.setTargetAtTime(targetVolume, this.ctx.currentTime, 0.05);
     }
   }
 
   updateTrackPan(id: string, pan: number) {
     const track = this.tracksMap.get(id);
-    if (track) {
+    if (track && this.ctx) {
       // Panning works only if 8D is disabled
       if (!track.lfoNode) {
-        track.pannerNode.pan.setValueAtTime(pan, this.ctx!.currentTime);
+        track.pannerNode.pan.setTargetAtTime(pan, this.ctx.currentTime, 0.05);
       }
     }
   }
 
   updateTrackEQ(id: string, low: number, mid: number, high: number) {
     const track = this.tracksMap.get(id);
-    if (track) {
-      track.eqLowNode.gain.setValueAtTime(low, this.ctx!.currentTime);
-      track.eqMidNode.gain.setValueAtTime(mid, this.ctx!.currentTime);
-      track.eqHighNode.gain.setValueAtTime(high, this.ctx!.currentTime);
+    if (track && this.ctx) {
+      track.eqLowNode.gain.setTargetAtTime(low, this.ctx.currentTime, 0.05);
+      track.eqMidNode.gain.setTargetAtTime(mid, this.ctx.currentTime, 0.05);
+      track.eqHighNode.gain.setTargetAtTime(high, this.ctx.currentTime, 0.05);
     }
   }
 
@@ -459,7 +489,24 @@ class AudioEngine {
 
   updateMasterVolume(volume: number) {
     if (this.masterGain && this.ctx) {
-      this.masterGain.gain.setValueAtTime(volume, this.ctx.currentTime);
+      this.masterGain.gain.setTargetAtTime(volume, this.ctx.currentTime, 0.05);
+    }
+  }
+
+  toggleLimiter(enabled: boolean) {
+    this.limiterEnabled = enabled;
+    if (!this.ctx || !this.masterGain || !this.limiterNode || !this.masterAnalyser) return;
+    
+    this.masterGain.disconnect();
+    this.limiterNode.disconnect();
+    
+    if (enabled) {
+      // Re-engage Limiter
+      this.masterGain.connect(this.limiterNode);
+      this.limiterNode.connect(this.masterAnalyser);
+    } else {
+      // Bypass Limiter
+      this.masterGain.connect(this.masterAnalyser);
     }
   }
 
@@ -562,6 +609,134 @@ class AudioEngine {
   }
 
   // --- OFFLINE 8D / FX EXPORTER (pure client-side WAV file creation) ---
+
+  async exportStemsAsZip(tracksList: TrackNodeState[], format: 'wav' | 'mp3' = 'wav'): Promise<Blob> {
+    if (tracksList.length === 0) {
+      throw new Error("No tracks to export");
+    }
+
+    const JSZip = (await import('jszip')).default;
+    const zip = new JSZip();
+
+    console.log("Fetching track buffers for offline stem rendering...");
+    const audioBuffers: { track: TrackNodeState; buffer: AudioBuffer }[] = [];
+    const tempCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+
+    for (const track of tracksList) {
+      try {
+        const response = await fetch(track.url);
+        const arrayBuffer = await response.arrayBuffer();
+        const audioBuffer = await tempCtx.decodeAudioData(arrayBuffer);
+        audioBuffers.push({ track, buffer: audioBuffer });
+      } catch (e) {
+        console.error(`Failed to load track ${track.title} for export:`, e);
+      }
+    }
+    tempCtx.close();
+
+    if (audioBuffers.length === 0) {
+      throw new Error("No audio files could be loaded for offline export");
+    }
+
+    const sampleRate = 44100;
+
+    // Render each stem independently
+    for (const item of audioBuffers) {
+      const { track, buffer } = item;
+      const duration = buffer.duration / (track.playbackRate || 1.0);
+      const offlineCtx = new OfflineAudioContext(2, sampleRate * duration, sampleRate);
+      
+      const source = offlineCtx.createBufferSource();
+      source.buffer = buffer;
+      source.playbackRate.setValueAtTime(track.playbackRate || 1.0, 0);
+
+      const splitter = offlineCtx.createChannelSplitter(2);
+      const merger = offlineCtx.createChannelMerger(2);
+      const gainL = offlineCtx.createGain();
+      const gainR = offlineCtx.createGain();
+
+      const eqLow = offlineCtx.createBiquadFilter();
+      eqLow.type = 'lowshelf';
+      eqLow.frequency.value = 250;
+      eqLow.gain.value = track.eqLow;
+
+      const eqMid = offlineCtx.createBiquadFilter();
+      eqMid.type = 'peaking';
+      eqMid.frequency.value = 1500;
+      eqMid.gain.value = track.eqMid;
+
+      const eqHigh = offlineCtx.createBiquadFilter();
+      eqHigh.type = 'highshelf';
+      eqHigh.frequency.value = 4000;
+      eqHigh.gain.value = track.eqHigh;
+
+      const lofi = offlineCtx.createBiquadFilter();
+      lofi.type = 'lowpass';
+      lofi.frequency.value = track.lofiEnabled ? 1500 : 22000;
+
+      const panner = offlineCtx.createStereoPanner();
+      const trackGain = offlineCtx.createGain();
+      const vol = track.mute ? 0 : track.volume;
+      trackGain.gain.setValueAtTime(vol, 0);
+
+      source.connect(splitter);
+      splitter.connect(gainL, 0);
+      splitter.connect(gainR, 1);
+
+      if (track.vocalExtraction === 'vocal_remover') {
+        gainL.gain.setValueAtTime(1.0, 0);
+        gainR.gain.setValueAtTime(-1.0, 0);
+        gainL.connect(merger, 0, 0);
+        gainR.connect(merger, 0, 0);
+        gainL.connect(merger, 0, 1);
+        gainR.connect(merger, 0, 1);
+      } else if (track.vocalExtraction === 'vocal_isolate') {
+        gainL.gain.setValueAtTime(1.0, 0);
+        gainR.gain.setValueAtTime(1.0, 0);
+        gainL.connect(merger, 0, 0);
+        gainR.connect(merger, 0, 0);
+        gainL.connect(merger, 0, 1);
+        gainR.connect(merger, 0, 1);
+      } else {
+        gainL.gain.setValueAtTime(1.0, 0);
+        gainR.gain.setValueAtTime(1.0, 0);
+        gainL.connect(merger, 0, 0);
+        gainR.connect(merger, 0, 1);
+      }
+
+      merger.connect(eqLow);
+      eqLow.connect(eqMid);
+      eqMid.connect(eqHigh);
+      eqHigh.connect(lofi);
+      lofi.connect(panner);
+      panner.connect(trackGain);
+      trackGain.connect(offlineCtx.destination);
+
+      if (track.pan8dEnabled) {
+        const panParam = panner.pan;
+        panParam.setValueAtTime(0, 0);
+        const speedHz = track.pan8dSpeed;
+        const step = 0.05;
+        for (let time = 0; time < duration; time += step) {
+          const panVal = Math.sin(2 * Math.PI * speedHz * time);
+          panParam.setValueAtTime(panVal, time);
+        }
+      } else {
+        panner.pan.setValueAtTime(track.pan, 0);
+      }
+
+      source.start(0);
+      
+      console.log(`Rendering stem: ${track.title}`);
+      const renderedBuffer = await offlineCtx.startRendering();
+      const blob = format === 'mp3' ? await this.bufferToMp3Blob(renderedBuffer) : this.bufferToWavBlob(renderedBuffer);
+      const safeTitle = track.title.replace(/[^a-zA-Z0-9_-]/g, '_');
+      zip.file(`${safeTitle}_stem.${format}`, blob);
+    }
+
+    console.log("Generating ZIP file...");
+    return await zip.generateAsync({ type: 'blob' });
+  }
 
   async exportMix(tracksList: TrackNodeState[], format: 'wav' | 'mp3' = 'wav'): Promise<Blob> {
     if (tracksList.length === 0) {

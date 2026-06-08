@@ -3,9 +3,11 @@ import Navbar from './components/Navbar';
 import Auth from './components/Auth';
 import Dashboard from './components/Dashboard';
 import Mixer from './components/Mixer';
+import Player from './components/Player';
+import { Toaster } from 'react-hot-toast';
 import type { TrackNodeState } from './utils/audioEngine';
 
-type View = 'auth' | 'dashboard' | 'mixer';
+type View = 'auth' | 'dashboard' | 'mixer' | 'player';
 
 interface User {
   email: string;
@@ -41,7 +43,7 @@ export default function App() {
     if (savedToken && savedUser) {
       setToken(savedToken);
       setUser(JSON.parse(savedUser));
-      setView('dashboard');
+      setView('player');
     }
   }, []);
 
@@ -75,7 +77,7 @@ export default function App() {
     setUser(newToken ? newUser : null);
     localStorage.setItem('token', newToken);
     localStorage.setItem('user', JSON.stringify(newUser));
-    setView('dashboard');
+    setView('player');
   };
 
   const handleLogout = () => {
@@ -89,7 +91,7 @@ export default function App() {
   const handleContinueAsGuest = () => {
     setToken(null);
     setUser(null);
-    setView('dashboard');
+    setView('player');
   };
 
   const handleOpenSession = (
@@ -138,6 +140,29 @@ export default function App() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <Toaster 
+        position="top-center" 
+        toastOptions={{
+          style: {
+            background: 'var(--bg-secondary)',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--card-border)',
+            borderRadius: '20px',
+          },
+          error: {
+            style: {
+              background: 'rgba(255, 0, 127, 0.15)',
+              color: 'var(--accent-pink)',
+              border: '1px solid rgba(255, 0, 127, 0.4)',
+              backdropFilter: 'blur(10px)',
+            },
+            iconTheme: {
+              primary: 'var(--accent-pink)',
+              secondary: '#fff',
+            },
+          }
+        }} 
+      />
       
       {/* Universal navigation header */}
       <Navbar 
@@ -160,6 +185,10 @@ export default function App() {
           <Dashboard 
             token={token} 
             onOpenSession={handleOpenSession} 
+            onOpenPlayer={(tracks) => {
+              setLibraryTracks(tracks);
+              setView('player');
+            }}
           />
         )}
 
@@ -177,6 +206,23 @@ export default function App() {
           />
         )}
 
+        {view === 'player' && (
+          <Player
+            libraryTracks={libraryTracks}
+            onMix={(track) => {
+              // Create a temporary session to mix this track
+              const tempSession = {
+                _id: 'temp-mix-' + Date.now(),
+                name: 'Mixing: ' + track.title,
+                masterVolume: 1.0,
+                tracks: [{ trackId: track.id, title: track.title, volume: 1.0, pan: 0.0, mute: false, solo: false }]
+              };
+              handleOpenSession(tempSession, [track], libraryTracks);
+            }}
+            onBack={() => setView('dashboard')}
+          />
+        )}
+
       </div>
 
       {/* Footer Branding */}
@@ -188,7 +234,7 @@ export default function App() {
         borderTop: '1px solid var(--card-border)',
         marginTop: 'auto'
       }}>
-        SonicWave Audio Studio &copy; {new Date().getFullYear()} • Built for high fidelity spatial DSP
+        SonicWaveMix Audio Studio &copy; {new Date().getFullYear()} • Built for high fidelity spatial DSP
       </footer>
 
     </div>

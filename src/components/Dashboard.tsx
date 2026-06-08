@@ -26,9 +26,10 @@ interface DashboardProps {
     tracksToLoad: { id: string; title: string; url: string }[],
     libraryTracks: { id: string; title: string; url: string }[]
   ) => void;
+  onOpenPlayer: (tracks: { id: string; title: string; url: string }[]) => void;
 }
 
-export default function Dashboard({ token, onOpenSession }: DashboardProps) {
+export default function Dashboard({ token, onOpenSession, onOpenPlayer }: DashboardProps) {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -394,6 +395,29 @@ export default function Dashboard({ token, onOpenSession }: DashboardProps) {
               />
               <button onClick={handleCreateSession} className="glow-btn" style={{ flexShrink: 0 }}>
                 Create
+              </button>
+            </div>
+            
+            <div style={{ marginTop: '24px', borderTop: '1px solid var(--card-border)', paddingTop: '20px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.15rem', marginBottom: '16px' }}>
+                <Music size={18} style={{ color: 'var(--accent-primary)' }} />
+                Music Player
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+                Listen to your library, manage playlists, and mix directly from the player.
+              </p>
+              <button 
+                onClick={() => {
+                  const combined = [...preloadedStems, ...tracks].map(t => ({
+                    id: t._id,
+                    title: t.title,
+                    url: (t as any).filepath || (t as any).url || ''
+                  }));
+                  onOpenPlayer(combined);
+                }} 
+                className="glow-btn" style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '8px' }}
+              >
+                <Play size={16} /> Open Music Player
               </button>
             </div>
           </div>
