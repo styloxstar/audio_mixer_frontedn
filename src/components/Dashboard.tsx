@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, FolderPlus, Upload, Trash2, Sliders, Music, FileAudio, Check, AlertCircle } from 'lucide-react';
+import { Play, FolderPlus, Upload, Trash2, Sliders, Music, FileAudio, Check, AlertCircle, RefreshCw, CloudOff } from 'lucide-react';
 import API_BASE_URL from '../utils/api';
+import { get, set } from 'idb-keyval';
 
 interface Track {
   _id: string;
@@ -36,6 +37,7 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
   const [sessionName, setSessionName] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [pendingUploads, setPendingUploads] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Preloaded stems for instant mixing/testing
@@ -90,7 +92,23 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
       });
       if (response.ok) {
         const data = await response.json();
-        setTracks(data);
+        
+        // Load offline pending uploads
+        const pending = await get('pending_uploads') || [];
+        setPendingUploads(pending);
+        
+        const pendingTracks = pending.map((file: File) => ({
+          _id: 'pending-' + file.name + '-' + file.size,
+          title: file.name.replace(/\.[^/.]+$/, ""),
+          filename: file.name,
+          filepath: URL.createObjectURL(file), // temporary local URL for offline playback
+          size: file.size,
+          mimeType: file.type,
+          isGuestUrl: true,
+          isPendingSync: true
+        }));
+        
+        setTracks([...pendingTracks, ...data]);
       }
     } catch (err) {
       console.error('Error fetching tracks:', err);
@@ -174,14 +192,73 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
       setSuccess('Audio track uploaded successfully!');
       fetchTracks();
     } catch (err: any) {
-      setError(err.message || 'Error uploading file.');
+      // Offline Fallback for large files (Vercel 413) or network errors
+      console.warn("Upload failed, falling back to local database", err);
+      const currentPending = await get('pending_uploads') || [];
+      if (!currentPending.find((f: File) => f.name === file.name && f.size === file.size)) {
+        currentPending.push(file);
+        await set('pending_uploads', currentPending);
+      }
+      setError(`Cloud upload failed (${err.message || 'Limit Exceeded'}). Saved "${file.name}" locally for offline mixing!`);
+      fetchTracks();
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  const handleDeleteTrack = async (trackId: string, isGuestUrl?: boolean) => {
+  const handleSyncPending = async () => {
+    setUploading(true);
+    let pending = await get('pending_uploads') || [];
+    let successCount = 0;
+    let newPending: File[] = [];
+    
+    for (const file of pending) {
+      const formData = new FormData();
+      formData.append('audio', file);
+      formData.append('title', file.name.replace(/\.[^/.]+$/, ""));
+      
+      try {
+        const response = await fetch(`${API_URL}/tracks/upload`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        });
+        if (response.ok) {
+          successCount++;
+        } else {
+          newPending.push(file);
+        }
+      } catch (err) {
+        newPending.push(file);
+      }
+    }
+    
+    await set('pending_uploads', newPending);
+    fetchTracks();
+    setUploading(false);
+    
+    if (successCount > 0) {
+      setSuccess(`Successfully synced ${successCount} track(s)!`);
+      setError('');
+    }
+    if (newPending.length > 0) {
+      setError(`Failed to sync ${newPending.length} track(s). Vercel 4.5MB limit likely exceeded.`);
+    }
+  };
+
+  const handleDeleteTrack = async (trackId: string, isGuestUrl?: boolean, isPendingSync?: boolean) => {
+    if (isPendingSync) {
+      // Remove from IndexedDB pending list
+      let pending = await get('pending_uploads') || [];
+      // we match by name since our ID was generated as 'pending-' + name + '-' + size
+      pending = pending.filter((f: File) => 'pending-' + f.name + '-' + f.size !== trackId);
+      await set('pending_uploads', pending);
+      setSuccess('Pending track removed locally.');
+      fetchTracks();
+      return;
+    }
+
     if (!token || isGuestUrl) {
       // Guest delete
       const updated = tracks.filter(t => t._id !== trackId);
@@ -499,15 +576,28 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
               style={{ display: 'none' }} 
             />
             
-            <button 
-              onClick={() => fileInputRef.current?.click()} 
-              className="glow-btn"
-              disabled={uploading}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 14px', fontSize: '0.82rem' }}
-            >
-              <Upload size={15} />
-              {uploading ? 'Processing...' : 'Upload Track'}
-            </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {tracks.some(t => (t as any).isPendingSync) && (
+                <button 
+                  onClick={handleSyncPending} 
+                  className="glow-btn"
+                  disabled={uploading}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 14px', fontSize: '0.82rem', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--accent-pink)' }}
+                >
+                  <RefreshCw size={15} style={{ color: 'var(--accent-pink)' }} className={uploading ? "spin-animation" : ""} />
+                  {uploading ? 'Syncing...' : 'Retry Sync'}
+                </button>
+              )}
+              <button 
+                onClick={() => fileInputRef.current?.click()} 
+                className="glow-btn"
+                disabled={uploading}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 14px', fontSize: '0.82rem' }}
+              >
+                <Upload size={15} />
+                {uploading ? 'Processing...' : 'Upload Track'}
+              </button>
+            </div>
           </div>
 
           <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '24px' }}>
@@ -592,8 +682,13 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                           <span style={{ fontSize: '0.85rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.title}</span>
-                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             {(track.size / (1024 * 1024)).toFixed(1)} MB • {track.filename.split('.').pop()?.toUpperCase()}
+                            {(track as any).isPendingSync && (
+                              <span style={{ color: 'var(--accent-pink)', display: 'flex', alignItems: 'center', gap: '2px', marginLeft: '6px' }}>
+                                <CloudOff size={10} /> Pending Upload
+                              </span>
+                            )}
                           </span>
                         </div>
                       </div>
@@ -607,7 +702,7 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
                           Mix
                         </button>
                         <button 
-                          onClick={() => handleDeleteTrack(track._id, (track as any).isGuestUrl)}
+                          onClick={() => handleDeleteTrack(track._id, (track as any).isGuestUrl, (track as any).isPendingSync)}
                           style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '6px', flexShrink: 0 }}
                           className="hover-lift"
                         >
@@ -629,3 +724,4 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
     </div>
   );
 }
+

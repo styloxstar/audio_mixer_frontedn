@@ -46,6 +46,7 @@ export default function Player({ libraryTracks, onMix, onBack }: PlayerProps) {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const filtersRef = useRef<{ low: BiquadFilterNode; mid: BiquadFilterNode; high: BiquadFilterNode } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     // Merge library tracks with any previously scanned tracks if we want, 
@@ -73,7 +74,18 @@ export default function Player({ libraryTracks, onMix, onBack }: PlayerProps) {
         console.error('Error restoring directory', err);
       }
     };
+    const restoreLocalFiles = async () => {
+      try {
+        const files: File[] = await get('localFiles');
+        if (files && files.length > 0) {
+          await processFileObjects(files, false);
+        }
+      } catch (err) {
+        console.error('Error restoring local files', err);
+      }
+    };
     restoreLocalFolder();
+    restoreLocalFiles();
   }, []);
 
   // Audio Context & EQ Setup
@@ -161,6 +173,47 @@ export default function Player({ libraryTracks, onMix, onBack }: PlayerProps) {
     return () => clearInterval(interval);
   }, [sleepTimer]);
 
+  const processFileObjects = async (files: File[], persist: boolean = false) => {
+    setScanning(true);
+    const newTracks: Track[] = [];
+    
+    for (const file of files) {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      if (['mp3', 'wav', 'ogg', 'aac'].includes(ext || '')) {
+        const metadata = await parseAudioMetadata(file);
+        newTracks.push({
+          id: `local-${file.name}-${Date.now()}`,
+          title: metadata.title,
+          artist: metadata.artist,
+          url: URL.createObjectURL(file), // Generate object URL
+          albumArt: metadata.pictureUrl,
+          file: file,
+          isLocal: true
+        });
+      }
+    }
+    
+    setQueue(prev => {
+      const combined = [...prev, ...newTracks];
+      // Remove duplicates
+      const unique = combined.filter((v, i, a) => a.findIndex(t => t.title === v.title && t.id === v.id) === i);
+      return unique;
+    });
+
+    if (persist) {
+      try {
+        const existingFiles: File[] = await get('localFiles') || [];
+        const combinedFiles = [...existingFiles, ...files];
+        const uniqueFiles = combinedFiles.filter((v, i, a) => a.findIndex(f => f.name === v.name && f.size === v.size) === i);
+        await idbSet('localFiles', uniqueFiles);
+      } catch (err) {
+        console.error('Failed saving files to IndexedDB', err);
+      }
+    }
+    
+    setScanning(false);
+  };
+
   const processDirectory = async (dirHandle: any) => {
     setScanning(true);
     const newTracks: Track[] = [];
@@ -201,7 +254,7 @@ export default function Player({ libraryTracks, onMix, onBack }: PlayerProps) {
   const handleScanFolder = async () => {
     try {
       if (!('showDirectoryPicker' in window)) {
-        alert("Your browser doesn't support local folder scanning.");
+        fileInputRef.current?.click();
         return;
       }
       const dirHandle = await (window as any).showDirectoryPicker({
@@ -212,7 +265,15 @@ export default function Player({ libraryTracks, onMix, onBack }: PlayerProps) {
     } catch (err: any) {
       if (err.name !== 'AbortError') {
         console.error('Scan folder error:', err);
+        fileInputRef.current?.click();
       }
+    }
+  };
+
+  const handleFallbackFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const filesArray = Array.from(e.target.files);
+      await processFileObjects(filesArray, true);
     }
   };
 
@@ -280,6 +341,14 @@ export default function Player({ libraryTracks, onMix, onBack }: PlayerProps) {
       
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '30px' }}>
+        <input 
+          type="file" 
+          multiple 
+          accept="audio/*" 
+          ref={fileInputRef} 
+          style={{ display: 'none' }} 
+          onChange={handleFallbackFileSelect} 
+        />
         <button onClick={onBack} className="hover-lift" style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
           <ArrowLeft size={18} /> Dashboard
         </button>
