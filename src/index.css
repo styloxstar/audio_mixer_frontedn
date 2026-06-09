@@ -346,6 +346,25 @@ input[type="range"]::-webkit-slider-thumb:hover {
   flex-wrap: wrap;
 }
 
+/* Player Component Layout */
+.player-grid {
+  display: grid;
+  grid-template-columns: 1fr 350px;
+  gap: 30px;
+}
+
+.player-main-panel {
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.player-album-art {
+  width: 300px;
+  height: 300px;
+}
+
 /* ================================================================
    TABLET — max-width: 900px
    ================================================================ */
@@ -358,6 +377,10 @@ input[type="range"]::-webkit-slider-thumb:hover {
   .mixer-grid {
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 14px;
+  }
+
+  .player-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -463,6 +486,16 @@ input[type="range"]::-webkit-slider-thumb:hover {
   /* Auth card full width */
   .auth-card {
     padding: 28px 20px !important;
+  }
+
+  /* Player adjustments */
+  .player-main-panel {
+    padding: 20px;
+  }
+
+  .player-album-art {
+    width: 240px;
+    height: 240px;
   }
 }
 

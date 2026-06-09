@@ -297,29 +297,26 @@ export default function Player({ libraryTracks, onMix, onBack }: PlayerProps) {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '30px' }}>
+      <div className="player-grid">
         
         {/* Main Player Area */}
-        <div className="glass-panel" style={{ padding: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div className="glass-panel player-main-panel">
           
           {currentTrack?.albumArt ? (
             <img 
               src={currentTrack.albumArt} 
               alt="Album Art"
+              className="player-album-art"
               style={{
-                width: '300px', 
-                height: '300px',
-                borderRadius: '16px',
                 objectFit: 'cover',
+                borderRadius: '16px',
                 boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
                 marginBottom: '30px',
                 border: '1px solid rgba(255,255,255,0.1)'
               }}
             />
           ) : (
-            <div style={{ 
-              width: '300px', 
-              height: '300px', 
+            <div className="player-album-art" style={{ 
               borderRadius: '50%', 
               background: 'linear-gradient(135deg, rgba(0, 242, 254, 0.2), rgba(79, 172, 254, 0.2))',
               display: 'flex',
@@ -499,19 +496,25 @@ export default function Player({ libraryTracks, onMix, onBack }: PlayerProps) {
               
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>BASS</span>
-                <input type="range" min={-12} max={12} step={1} value={eqLow} onChange={e => setEqLow(parseFloat(e.target.value))} style={{ transform: 'rotate(-90deg)', width: '100px' }} />
+                <div style={{ width: '20px', height: '100px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                  <input type="range" min={-12} max={12} step={1} value={eqLow} onChange={e => setEqLow(parseFloat(e.target.value))} style={{ transform: 'rotate(-90deg)', width: '100px', margin: 0 }} />
+                </div>
                 <span style={{ fontSize: '0.8rem', fontFamily: 'monospace', color: 'var(--accent-primary)' }}>{eqLow > 0 ? `+${eqLow}` : eqLow}</span>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>MID</span>
-                <input type="range" min={-12} max={12} step={1} value={eqMid} onChange={e => setEqMid(parseFloat(e.target.value))} style={{ transform: 'rotate(-90deg)', width: '100px' }} />
+                <div style={{ width: '20px', height: '100px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                  <input type="range" min={-12} max={12} step={1} value={eqMid} onChange={e => setEqMid(parseFloat(e.target.value))} style={{ transform: 'rotate(-90deg)', width: '100px', margin: 0 }} />
+                </div>
                 <span style={{ fontSize: '0.8rem', fontFamily: 'monospace', color: 'var(--accent-primary)' }}>{eqMid > 0 ? `+${eqMid}` : eqMid}</span>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>TREB</span>
-                <input type="range" min={-12} max={12} step={1} value={eqHigh} onChange={e => setEqHigh(parseFloat(e.target.value))} style={{ transform: 'rotate(-90deg)', width: '100px' }} />
+                <div style={{ width: '20px', height: '100px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                  <input type="range" min={-12} max={12} step={1} value={eqHigh} onChange={e => setEqHigh(parseFloat(e.target.value))} style={{ transform: 'rotate(-90deg)', width: '100px', margin: 0 }} />
+                </div>
                 <span style={{ fontSize: '0.8rem', fontFamily: 'monospace', color: 'var(--accent-primary)' }}>{eqHigh > 0 ? `+${eqHigh}` : eqHigh}</span>
               </div>
 
