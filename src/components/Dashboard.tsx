@@ -37,7 +37,7 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
   const [sessionName, setSessionName] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [pendingUploads, setPendingUploads] = useState<File[]>([]);
+  const [, setPendingUploads] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Preloaded stems for instant mixing/testing

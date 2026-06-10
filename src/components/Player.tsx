@@ -76,7 +76,7 @@ export default function Player({ libraryTracks, onMix, onBack }: PlayerProps) {
     };
     const restoreLocalFiles = async () => {
       try {
-        const files: File[] = await get('localFiles');
+        const files: File[] = (await get('localFiles')) || [];
         if (files && files.length > 0) {
           await processFileObjects(files, false);
         }
