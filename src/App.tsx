@@ -124,6 +124,8 @@ export default function App() {
           pan8dEnabled: t.pan8dEnabled !== undefined ? t.pan8dEnabled : false,
           pan8dSpeed: t.pan8dSpeed !== undefined ? t.pan8dSpeed : 0.1,
           playbackRate: t.playbackRate !== undefined ? t.playbackRate : 1.0,
+          pitchShift: t.pitchShift !== undefined ? t.pitchShift : 1.0,
+          preservePitch: t.preservePitch !== undefined ? t.preservePitch : false,
           lofiEnabled: t.lofiEnabled !== undefined ? t.lofiEnabled : false
         }));
         setTracksListState(loadedStates);

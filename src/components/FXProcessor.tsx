@@ -98,6 +98,40 @@ export default function FXProcessor({
     setTracksListState(updated);
   };
 
+  const handlePitchChange = (pitch: number) => {
+    const updated = tracksListState.map(t => {
+      if (t.id === trackId) {
+        audioEngine.updateTrackPitch(trackId, pitch, t.preservePitch);
+        return { ...t, pitchShift: pitch };
+      }
+      return t;
+    });
+    setTracksListState(updated);
+  };
+
+  const handlePreservePitchToggle = (val: boolean) => {
+    const updated = tracksListState.map(t => {
+      if (t.id === trackId) {
+        audioEngine.updateTrackPitch(trackId, t.pitchShift, val);
+        return { ...t, preservePitch: val };
+      }
+      return t;
+    });
+    setTracksListState(updated);
+  };
+
+  const handlePresetApply = (speed: number, pitch: number) => {
+    const updated = tracksListState.map(t => {
+      if (t.id === trackId) {
+        audioEngine.updateTrackPlaybackRate(trackId, speed);
+        audioEngine.updateTrackPitch(trackId, pitch, false);
+        return { ...t, playbackRate: speed, pitchShift: pitch, preservePitch: false };
+      }
+      return t;
+    });
+    setTracksListState(updated);
+  };
+
   const handleLofiToggle = () => {
     const updated = tracksListState.map(t => {
       if (t.id === trackId) {
@@ -124,6 +158,7 @@ export default function FXProcessor({
       audioEngine.updateTrackNoiseGate(t.id, track.noiseGateThreshold);
       audioEngine.updateTrack8D(t.id, track.pan8dEnabled, track.pan8dSpeed);
       audioEngine.updateTrackPlaybackRate(t.id, track.playbackRate);
+      audioEngine.updateTrackPitch(t.id, track.pitchShift, track.preservePitch);
       audioEngine.updateTrackLofi(t.id, track.lofiEnabled);
 
       return {
@@ -136,6 +171,8 @@ export default function FXProcessor({
         pan8dEnabled: track.pan8dEnabled,
         pan8dSpeed: track.pan8dSpeed,
         playbackRate: track.playbackRate,
+        pitchShift: track.pitchShift,
+        preservePitch: track.preservePitch,
         lofiEnabled: track.lofiEnabled
       };
     });
@@ -459,25 +496,54 @@ export default function FXProcessor({
             )}
           </div>
 
-          {/* Playback Speed / Slowmo Control */}
+          {/* Voice Modulations (Presets) */}
+          <div className="glass-panel" style={{ padding: '24px' }}>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem', marginBottom: '12px' }}>
+              <RotateCw size={18} style={{ color: 'var(--accent-primary)' }} />
+              Voice Modulations (Presets)
+            </h3>
+            <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
+              {[
+                { label: 'Normal', speed: 1.0, pitch: 1.0 },
+                { label: 'Deep', speed: 1.0, pitch: 0.7 },
+                { label: 'Husky', speed: 1.0, pitch: 0.85 },
+                { label: 'Slow Deep', speed: 0.6, pitch: 0.6 },
+                { label: 'Slowmo-High', speed: 0.6, pitch: 1.6 },
+                { label: 'Chipmunk', speed: 1.5, pitch: 2.0 },
+              ].map(preset => (
+                <button
+                  key={preset.label}
+                  onClick={() => handlePresetApply(preset.speed, preset.pitch)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '20px',
+                    border: '1px solid var(--accent-primary)',
+                    backgroundColor: 'rgba(0, 242, 254, 0.15)',
+                    color: 'white',
+                    fontSize: '0.75rem',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Playback Speed Control */}
           <div className="glass-panel" style={{ padding: '24px' }}>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem', marginBottom: '12px' }}>
               <RotateCw size={18} style={{ color: 'var(--accent-secondary)' }} />
-              Playback Speed & Slowmo
+              Playback Speed
             </h3>
-            
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-              Slow down or speed up playback (0.5x to 2.0x). Slowing down creates a heavy, pitched-down slowmo effect.
-            </p>
-
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '6px' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Speed multiplier</span>
                 <span style={{ fontFamily: 'monospace', color: 'var(--accent-secondary)', fontWeight: 700 }}>
-                  {track.playbackRate}x {track.playbackRate === 1.0 ? '(Normal)' : track.playbackRate < 1.0 ? '(Slowmo)' : '(Fast)'}
+                  {track.playbackRate}x
                 </span>
               </div>
-              
               <input
                 type="range"
                 min={0.5}
@@ -486,10 +552,43 @@ export default function FXProcessor({
                 value={track.playbackRate || 1.0}
                 onChange={(e) => handlePlaybackRateChange(parseFloat(e.target.value))}
               />
-              
+            </div>
+            
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '16px' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Smooth Slow-Mo (Disable Pitch Lock)</span>
+              <button 
+                onClick={() => handlePreservePitchToggle(!track.preservePitch)}
+                style={{ background: 'none', border: 'none', color: !track.preservePitch ? 'var(--accent-primary)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}
+              >
+                {!track.preservePitch ? <ToggleRight size={36} /> : <ToggleLeft size={36} />}
+              </button>
+            </div>
+          </div>
+
+          {/* Voice Pitch Modulation */}
+          <div className="glass-panel" style={{ padding: '24px' }}>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem', marginBottom: '12px' }}>
+              <RotateCw size={18} style={{ color: 'var(--accent-pink)' }} />
+              Voice Pitch Modulation
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '6px' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>Pitch Shift</span>
+                <span style={{ fontFamily: 'monospace', color: 'var(--accent-pink)', fontWeight: 700 }}>
+                  {track.pitchShift}x
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0.5}
+                max={2.0}
+                step={0.05}
+                value={track.pitchShift || 1.0}
+                onChange={(e) => handlePitchChange(parseFloat(e.target.value))}
+              />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                <span>Heavy Slowmo (0.5x)</span>
-                <span>Double Time (2.0x)</span>
+                <span>Deep (0.5x)</span>
+                <span>High (2.0x)</span>
               </div>
             </div>
           </div>

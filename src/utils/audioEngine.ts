@@ -16,6 +16,8 @@ export interface TrackNodeState {
   pan8dEnabled: boolean;
   pan8dSpeed: number; // Hz (0.05 to 2.0)
   playbackRate: number; // 0.5 to 2.0 (1.0 default)
+  pitchShift: number; // 0.5 to 2.0 (1.0 default)
+  preservePitch: boolean;
   lofiEnabled: boolean;
 }
 
@@ -114,9 +116,9 @@ class AudioEngine {
     audio.crossOrigin = 'anonymous';
     audio.loop = false;
     audio.preload = 'auto';
-    audio.preservesPitch = false;
-    (audio as any).webkitPreservesPitch = false;
-    (audio as any).mozPreservesPitch = false;
+    audio.preservesPitch = track.preservePitch;
+    (audio as any).webkitPreservesPitch = track.preservePitch;
+    (audio as any).mozPreservesPitch = track.preservePitch;
 
     // Wait for basic metadata to load
     await new Promise<void>((resolve) => {
@@ -218,6 +220,7 @@ class AudioEngine {
     this.updateTrack8D(track.id, track.pan8dEnabled, track.pan8dSpeed);
     this.updateTrackNoiseGate(track.id, track.noiseGateThreshold);
     this.updateTrackPlaybackRate(track.id, track.playbackRate);
+    this.updateTrackPitch(track.id, track.pitchShift, track.preservePitch);
     this.updateTrackLofi(track.id, track.lofiEnabled);
 
     // If mix is currently playing, start the new track immediately in sync
@@ -348,6 +351,20 @@ class AudioEngine {
     const track = this.tracksMap.get(id);
     if (track) {
       track.audioElement.playbackRate = rate;
+    }
+  }
+
+  updateTrackPitch(id: string, pitch: number, preservePitch: boolean) {
+    const track = this.tracksMap.get(id);
+    if (track) {
+      track.audioElement.preservesPitch = preservePitch;
+      (track.audioElement as any).webkitPreservesPitch = preservePitch;
+      (track.audioElement as any).mozPreservesPitch = preservePitch;
+      
+      // If pitch isn't locked, simulate pitch shift by overriding playback rate 
+      if (!preservePitch && pitch !== 1.0) {
+        track.audioElement.playbackRate = pitch;
+      }
     }
   }
 
@@ -643,12 +660,18 @@ class AudioEngine {
     // Render each stem independently
     for (const item of audioBuffers) {
       const { track, buffer } = item;
-      const duration = buffer.duration / (track.playbackRate || 1.0);
+      
+      let effectiveRate = track.playbackRate || 1.0;
+      if (!track.preservePitch && track.pitchShift && track.pitchShift !== 1.0) {
+        effectiveRate = track.pitchShift;
+      }
+      
+      const duration = buffer.duration / effectiveRate;
       const offlineCtx = new OfflineAudioContext(2, sampleRate * duration, sampleRate);
       
       const source = offlineCtx.createBufferSource();
       source.buffer = buffer;
-      source.playbackRate.setValueAtTime(track.playbackRate || 1.0, 0);
+      source.playbackRate.setValueAtTime(effectiveRate, 0);
 
       const splitter = offlineCtx.createChannelSplitter(2);
       const merger = offlineCtx.createChannelMerger(2);
@@ -767,10 +790,13 @@ class AudioEngine {
       throw new Error("No audio files could be loaded for offline export");
     }
 
-    // 2. Find longest duration (adjusted for playback rate speed)
     let maxDuration = 0;
     for (const item of audioBuffers) {
-      const adjustedDuration = item.buffer.duration / (item.track.playbackRate || 1.0);
+      let effectiveRate = item.track.playbackRate || 1.0;
+      if (!item.track.preservePitch && item.track.pitchShift && item.track.pitchShift !== 1.0) {
+        effectiveRate = item.track.pitchShift;
+      }
+      const adjustedDuration = item.buffer.duration / effectiveRate;
       if (adjustedDuration > maxDuration) {
         maxDuration = adjustedDuration;
       }
@@ -784,9 +810,14 @@ class AudioEngine {
     for (const item of audioBuffers) {
       const { track, buffer } = item;
       
+      let effectiveRate = track.playbackRate || 1.0;
+      if (!track.preservePitch && track.pitchShift && track.pitchShift !== 1.0) {
+        effectiveRate = track.pitchShift;
+      }
+      
       const source = offlineCtx.createBufferSource();
       source.buffer = buffer;
-      source.playbackRate.setValueAtTime(track.playbackRate || 1.0, 0);
+      source.playbackRate.setValueAtTime(effectiveRate, 0);
 
       // Duplicate standard DSP elements
       const splitter = offlineCtx.createChannelSplitter(2);

@@ -102,6 +102,8 @@ export default function Mixer({
           pan8dEnabled: false,
           pan8dSpeed: 0.1,
           playbackRate: 1.0,
+          pitchShift: 1.0,
+          preservePitch: false,
           lofiEnabled: false
         }));
         setTracksListState(initialTracks);
@@ -242,6 +244,8 @@ export default function Mixer({
         pan8dEnabled: false,
         pan8dSpeed: 0.1,
         playbackRate: 1.0,
+        pitchShift: 1.0,
+        preservePitch: false,
         lofiEnabled: false
       };
 
@@ -368,6 +372,8 @@ export default function Mixer({
         pan8dEnabled: t.pan8dEnabled,
         pan8dSpeed: t.pan8dSpeed,
         playbackRate: t.playbackRate,
+        pitchShift: t.pitchShift,
+        preservePitch: t.preservePitch,
         lofiEnabled: t.lofiEnabled
       }))
     };
