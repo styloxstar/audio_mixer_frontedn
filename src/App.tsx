@@ -125,8 +125,9 @@ export default function App() {
           pan8dSpeed: t.pan8dSpeed !== undefined ? t.pan8dSpeed : 0.1,
           playbackRate: t.playbackRate !== undefined ? t.playbackRate : 1.0,
           pitchShift: t.pitchShift !== undefined ? t.pitchShift : 1.0,
-          preservePitch: t.preservePitch !== undefined ? t.preservePitch : false,
-          lofiEnabled: t.lofiEnabled !== undefined ? t.lofiEnabled : false
+          preservePitch: t.preservePitch !== undefined ? t.preservePitch : true,
+          lofiEnabled: t.lofiEnabled || false,
+          fxBlend: t.fxBlend !== undefined ? t.fxBlend : 1.0
         }));
         setTracksListState(loadedStates);
       } else {
@@ -141,104 +142,112 @@ export default function App() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Toaster 
-        position="top-center" 
-        toastOptions={{
-          style: {
-            background: 'var(--bg-secondary)',
-            color: 'var(--text-primary)',
-            border: '1px solid var(--card-border)',
-            borderRadius: '20px',
-          },
-          error: {
-            style: {
-              background: 'rgba(255, 0, 127, 0.15)',
-              color: 'var(--accent-pink)',
-              border: '1px solid rgba(255, 0, 127, 0.4)',
-              backdropFilter: 'blur(10px)',
-            },
-            iconTheme: {
-              primary: 'var(--accent-pink)',
-              secondary: '#fff',
-            },
-          }
-        }} 
-      />
+    <>
+      {/* Ambient Glassmorphism Background */}
+      <div className="glass-ambient-bg">
+        <div className="glass-ambient-blob-1"></div>
+        <div className="glass-ambient-blob-2"></div>
+      </div>
       
-      {/* Universal navigation header */}
-      <Navbar 
-        darkMode={darkMode} 
-        setDarkMode={setDarkMode} 
-        user={user} 
-        onLogout={handleLogout}
-        isPlaying={isAudioPlaying}
-      />
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', position: 'relative', zIndex: 1 }}>
+        <Toaster 
+          position="top-center" 
+          toastOptions={{
+            style: {
+              background: 'var(--bg-secondary)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--card-border)',
+              borderRadius: '20px',
+            },
+            error: {
+              style: {
+                background: 'rgba(255, 0, 127, 0.15)',
+                color: 'var(--accent-pink)',
+                border: '1px solid rgba(255, 0, 127, 0.4)',
+                backdropFilter: 'blur(10px)',
+              },
+              iconTheme: {
+                primary: 'var(--accent-pink)',
+                secondary: '#fff',
+              },
+            }
+          }} 
+        />
+        
+        {/* Universal navigation header */}
+        <Navbar 
+          darkMode={darkMode} 
+          setDarkMode={setDarkMode} 
+          user={user} 
+          onLogout={handleLogout}
+          isPlaying={isAudioPlaying}
+        />
 
-      <div style={{ flex: 1 }}>
-        {view === 'auth' && (
-          <Auth 
-            onAuthSuccess={handleAuthSuccess} 
-            onContinueAsGuest={handleContinueAsGuest} 
-          />
-        )}
+        <div style={{ flex: 1 }}>
+          {view === 'auth' && (
+            <Auth 
+              onAuthSuccess={handleAuthSuccess} 
+              onContinueAsGuest={handleContinueAsGuest} 
+            />
+          )}
 
-        {view === 'dashboard' && (
-          <Dashboard 
-            token={token} 
-            onOpenSession={handleOpenSession} 
-            onOpenPlayer={(tracks) => {
-              setLibraryTracks(tracks);
-              setView('player');
-            }}
-          />
-        )}
+          {view === 'dashboard' && (
+            <Dashboard 
+              token={token} 
+              onOpenSession={handleOpenSession} 
+              onOpenPlayer={(tracks) => {
+                setLibraryTracks(tracks);
+                setView('player');
+              }}
+            />
+          )}
 
-        {view === 'mixer' && activeSession && (
-          <Mixer
-            session={activeSession}
-            tracksToLoad={tracksToLoad}
-            libraryTracks={libraryTracks}
-            token={token}
-            onBack={() => setView('dashboard')}
-            tracksListState={tracksListState}
-            setTracksListState={setTracksListState}
-            masterVolume={masterVolume}
-            setMasterVolume={setMasterVolume}
-          />
-        )}
+          {view === 'mixer' && activeSession && (
+            <Mixer
+              session={activeSession}
+              tracksToLoad={tracksToLoad}
+              libraryTracks={libraryTracks}
+              token={token}
+              onBack={() => setView('dashboard')}
+              tracksListState={tracksListState}
+              setTracksListState={setTracksListState}
+              masterVolume={masterVolume}
+              setMasterVolume={setMasterVolume}
+            />
+          )}
 
-        {view === 'player' && (
-          <Player
-            libraryTracks={libraryTracks}
-            onMix={(track) => {
-              // Create a temporary session to mix this track
-              const tempSession = {
-                _id: 'temp-mix-' + Date.now(),
-                name: 'Mixing: ' + track.title,
-                masterVolume: 1.0,
-                tracks: [{ trackId: track.id, title: track.title, volume: 1.0, pan: 0.0, mute: false, solo: false }]
-              };
-              handleOpenSession(tempSession, [track], libraryTracks);
-            }}
-            onBack={() => setView('dashboard')}
-          />
-        )}
+          {view === 'player' && (
+            <Player
+              libraryTracks={libraryTracks}
+              onMix={(track) => {
+                // Create a temporary session to mix this track
+                const tempSession = {
+                  _id: 'temp-mix-' + Date.now(),
+                  name: 'Mixing: ' + track.title,
+                  masterVolume: 1.0,
+                  tracks: [{ trackId: track.id, title: track.title, volume: 1.0, pan: 0.0, mute: false, solo: false }]
+                };
+                handleOpenSession(tempSession, [track], libraryTracks);
+              }}
+              onBack={() => setView('dashboard')}
+            />
+          )}
+
+        </div>
+
+        {/* Footer Branding */}
+        <footer style={{
+          textAlign: 'center',
+          padding: '30px',
+          fontSize: '0.75rem',
+          color: 'var(--text-muted)',
+          borderTop: '1px solid var(--card-border)',
+          marginTop: 'auto'
+        }}>
+          SonicWaveMix Audio Studio &copy; {new Date().getFullYear()} • Built for high fidelity spatial DSP
+        </footer>
 
       </div>
-
-      {/* Footer Branding */}
-      <footer style={{
-        textAlign: 'center',
-        padding: '30px',
-        fontSize: '0.75rem',
-        color: 'var(--text-muted)',
-        borderTop: '1px solid var(--card-border)',
-        marginTop: 'auto'
-      }}>
-        SonicWaveMix Audio Studio &copy; {new Date().getFullYear()} • Built for high fidelity spatial DSP
-      </footer>
-
-    </div>
+    </>
   );
 }

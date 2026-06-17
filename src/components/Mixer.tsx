@@ -104,7 +104,8 @@ export default function Mixer({
           playbackRate: 1.0,
           pitchShift: 1.0,
           preservePitch: false,
-          lofiEnabled: false
+          lofiEnabled: false,
+        fxBlend: 1.0
         }));
         setTracksListState(initialTracks);
       }
@@ -246,7 +247,8 @@ export default function Mixer({
         playbackRate: 1.0,
         pitchShift: 1.0,
         preservePitch: false,
-        lofiEnabled: false
+        lofiEnabled: false,
+        fxBlend: 1.0
       };
 
       setLoadingTracks(true);
@@ -719,15 +721,21 @@ export default function Mixer({
             )}
           </button>
         </div>
-
       </div>
 
       {/* Main Mixer Rack */}
       {loadingTracks ? (
-        <div className="glass-panel" style={{ padding: '80px 0', textAlign: 'center' }}>
+        <div className="glass-panel" style={{ 
+          padding: '80px 0', 
+          textAlign: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '50vh'
+        }}>
           <RefreshCw size={36} className="spin-slow" style={{ color: 'var(--accent-primary)', marginBottom: '16px' }} />
-          <h4 style={{ fontSize: '1.1rem', marginBottom: '8px' }}>Initializing Audio Buffers</h4>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Configuring real-time routing graph nodes...</p>
+          <p style={{ color: 'var(--text-secondary)' }}>Buffering audio streams...</p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>

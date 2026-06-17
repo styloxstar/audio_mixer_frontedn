@@ -19,6 +19,7 @@ export interface TrackNodeState {
   pitchShift: number; // 0.5 to 2.0 (1.0 default)
   preservePitch: boolean;
   lofiEnabled: boolean;
+  fxBlend: number; // 0.0 to 1.0 (1.0 = 100% FX, 0.0 = 100% Original)
 }
 
 class AudioEngine {
@@ -38,6 +39,8 @@ class AudioEngine {
     pannerNode: StereoPannerNode;
     lfoNode: OscillatorNode | null;
     lfoGainNode: GainNode | null;
+    dryGainNode: GainNode;
+    wetGainNode: GainNode;
     gainNode: GainNode;
     analyserNode: AnalyserNode;
   }> = new Map();
@@ -161,10 +164,14 @@ class AudioEngine {
     // 5. Stereo Panner (2D/8D support)
     const pannerNode = this.ctx.createStereoPanner();
 
-    // 6. Volume Gain Node
+    // 6. Dry/Wet Blending Nodes
+    const dryGainNode = this.ctx.createGain();
+    const wetGainNode = this.ctx.createGain();
+
+    // 7. Final Track Volume Gain Node
     const gainNode = this.ctx.createGain();
 
-    // 7. Channel Analyser
+    // 8. Channel Analyser
     const analyserNode = this.ctx.createAnalyser();
     analyserNode.fftSize = 64;
 
@@ -180,17 +187,24 @@ class AudioEngine {
     splitterNode.connect(vocalRemoverGainR, 1);
     vocalRemoverGainR.connect(mergerNode, 0, 1); // Out right
 
-    // Merger -> EQ Low -> EQ Mid -> EQ High -> Lofi -> Noise Gate -> Panner -> Gain -> Analyser -> Master
+    // Merger -> EQ Low -> EQ Mid -> EQ High -> Lofi -> Noise Gate -> Panner -> Wet Gain
     mergerNode.connect(eqLowNode);
     eqLowNode.connect(eqMidNode);
     eqMidNode.connect(eqHighNode);
     eqHighNode.connect(lofiNode);
     lofiNode.connect(noiseGateNode);
     noiseGateNode.connect(pannerNode);
-    pannerNode.connect(gainNode);
-    gainNode.connect(analyserNode);
+    pannerNode.connect(wetGainNode);
     
-    // Connect to Master Gain
+    // Source -> Dry Gain (Bypass FX)
+    sourceNode.connect(dryGainNode);
+
+    // Dry & Wet -> Track Gain
+    dryGainNode.connect(gainNode);
+    wetGainNode.connect(gainNode);
+
+    // Track Gain -> Analyser -> Master
+    gainNode.connect(analyserNode);
     analyserNode.connect(this.masterGain);
 
     this.tracksMap.set(track.id, {
@@ -208,6 +222,8 @@ class AudioEngine {
       pannerNode,
       lfoNode: null,
       lfoGainNode: null,
+      dryGainNode,
+      wetGainNode,
       gainNode,
       analyserNode
     });
@@ -222,6 +238,7 @@ class AudioEngine {
     this.updateTrackPlaybackRate(track.id, track.playbackRate);
     this.updateTrackPitch(track.id, track.pitchShift, track.preservePitch);
     this.updateTrackLofi(track.id, track.lofiEnabled);
+    this.updateTrackFxBlend(track.id, track.fxBlend);
 
     // If mix is currently playing, start the new track immediately in sync
     if (this.isPlaying) {
@@ -361,10 +378,24 @@ class AudioEngine {
       (track.audioElement as any).webkitPreservesPitch = preservePitch;
       (track.audioElement as any).mozPreservesPitch = preservePitch;
       
-      // If pitch isn't locked, simulate pitch shift by overriding playback rate 
-      if (!preservePitch && pitch !== 1.0) {
-        track.audioElement.playbackRate = pitch;
+      // If preservePitch is false, we can simulate pitch shift via playbackRate
+      // If it is true, Web Audio doesn't have a native pitch shift that preserves length easily
+      // but we will apply the pitch shift to playbackRate anyway as a fallback for the web version
+      // just so the effect is audible.
+      if (pitch !== 1.0) {
+        track.audioElement.playbackRate = pitch * track.audioElement.defaultPlaybackRate;
       }
+    }
+  }
+
+  updateTrackFxBlend(id: string, fxBlend: number) {
+    const track = this.tracksMap.get(id);
+    if (track && this.ctx) {
+      // fxBlend 1.0 = 100% Wet, 0.0 = 100% Dry
+      const wetLevel = Math.max(0.001, fxBlend);
+      const dryLevel = Math.max(0.001, 1.0 - fxBlend);
+      track.wetGainNode.gain.setTargetAtTime(wetLevel, this.ctx.currentTime, 0.05);
+      track.dryGainNode.gain.setTargetAtTime(dryLevel, this.ctx.currentTime, 0.05);
     }
   }
 

@@ -112,8 +112,21 @@ export default function FXProcessor({
   const handlePreservePitchToggle = (val: boolean) => {
     const updated = tracksListState.map(t => {
       if (t.id === trackId) {
-        audioEngine.updateTrackPitch(trackId, t.pitchShift, val);
-        return { ...t, preservePitch: val };
+        // If turning Pitch Correction OFF, reset pitch back to 1.0
+        const newPitch = val ? t.pitchShift : 1.0;
+        audioEngine.updateTrackPitch(trackId, newPitch, val);
+        return { ...t, preservePitch: val, pitchShift: newPitch };
+      }
+      return t;
+    });
+    setTracksListState(updated);
+  };
+
+  const handleFxBlendChange = (val: number) => {
+    const updated = tracksListState.map(t => {
+      if (t.id === trackId) {
+        audioEngine.updateTrackFxBlend(trackId, val);
+        return { ...t, fxBlend: val };
       }
       return t;
     });
@@ -160,6 +173,7 @@ export default function FXProcessor({
       audioEngine.updateTrackPlaybackRate(t.id, track.playbackRate);
       audioEngine.updateTrackPitch(t.id, track.pitchShift, track.preservePitch);
       audioEngine.updateTrackLofi(t.id, track.lofiEnabled);
+      audioEngine.updateTrackFxBlend(t.id, track.fxBlend);
 
       return {
         ...t,
@@ -173,7 +187,8 @@ export default function FXProcessor({
         playbackRate: track.playbackRate,
         pitchShift: track.pitchShift,
         preservePitch: track.preservePitch,
-        lofiEnabled: track.lofiEnabled
+        lofiEnabled: track.lofiEnabled,
+        fxBlend: track.fxBlend
       };
     });
     setTracksListState(updated);
@@ -258,6 +273,45 @@ export default function FXProcessor({
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+        
+        {/* Module 0: Background Original Audio Mix */}
+        <div className="glass-panel" style={{ padding: '28px', gridColumn: '1 / -1' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem' }}>
+              <Sliders size={18} style={{ color: 'var(--accent-secondary)' }} />
+              Enable Background Original Audio Mix
+            </h3>
+            <button 
+              onClick={() => handleFxBlendChange((track.fxBlend ?? 1.0) < 1.0 ? 1.0 : 0.5)}
+              style={{ background: 'none', border: 'none', color: (track.fxBlend ?? 1.0) < 1.0 ? 'var(--accent-primary)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}
+            >
+              {(track.fxBlend ?? 1.0) < 1.0 ? <ToggleRight size={36} /> : <ToggleLeft size={36} />}
+            </button>
+          </div>
+          
+          {(track.fxBlend ?? 1.0) < 1.0 && (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '6px' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>Mix Level</span>
+                <span style={{ fontFamily: 'monospace', color: 'var(--accent-primary)', fontWeight: 700 }}>
+                  {Math.round((1.0 - (track.fxBlend ?? 1.0)) * 100)}%
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0.0}
+                max={1.0}
+                step={0.05}
+                value={1.0 - (track.fxBlend ?? 1.0)}
+                onChange={(e) => handleFxBlendChange(1.0 - parseFloat(e.target.value))}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                <span>FX Only</span>
+                <span>50/50</span>
+              </div>
+            </div>
+          )}
+        </div>
         
         {/* Module 1: 3-Band Parametric Equalizer */}
         <div className="glass-panel" style={{ padding: '28px', display: 'flex', flexDirection: 'column' }}>
@@ -507,6 +561,7 @@ export default function FXProcessor({
                 { label: 'Normal', speed: 1.0, pitch: 1.0 },
                 { label: 'Deep', speed: 1.0, pitch: 0.7 },
                 { label: 'Husky', speed: 1.0, pitch: 0.85 },
+                { label: 'Evil Robot', speed: 0.8, pitch: 0.5 },
                 { label: 'Slow Deep', speed: 0.6, pitch: 0.6 },
                 { label: 'Slowmo-High', speed: 0.6, pitch: 1.6 },
                 { label: 'Chipmunk', speed: 1.5, pitch: 2.0 },
@@ -555,13 +610,7 @@ export default function FXProcessor({
             </div>
             
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '16px' }}>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Smooth Slow-Mo (Disable Pitch Lock)</span>
-              <button 
-                onClick={() => handlePreservePitchToggle(!track.preservePitch)}
-                style={{ background: 'none', border: 'none', color: !track.preservePitch ? 'var(--accent-primary)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}
-              >
-                {!track.preservePitch ? <ToggleRight size={36} /> : <ToggleLeft size={36} />}
-              </button>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}></span>
             </div>
           </div>
 
@@ -571,26 +620,39 @@ export default function FXProcessor({
               <RotateCw size={18} style={{ color: 'var(--accent-pink)' }} />
               Voice Pitch Modulation
             </h3>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '6px' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Pitch Shift</span>
-                <span style={{ fontFamily: 'monospace', color: 'var(--accent-pink)', fontWeight: 700 }}>
-                  {track.pitchShift}x
-                </span>
-              </div>
-              <input
-                type="range"
-                min={0.5}
-                max={2.0}
-                step={0.05}
-                value={track.pitchShift || 1.0}
-                onChange={(e) => handlePitchChange(parseFloat(e.target.value))}
-              />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                <span>Deep (0.5x)</span>
-                <span>High (2.0x)</span>
-              </div>
+            {/* Pitch Correction Control */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 600 }}>Preserve Pitch (Pitch Correction)</span>
+              <button 
+                onClick={() => handlePreservePitchToggle(!track.preservePitch)}
+                style={{ background: 'none', border: 'none', color: track.preservePitch ? 'var(--accent-primary)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}
+              >
+                {track.preservePitch ? <ToggleRight size={36} /> : <ToggleLeft size={36} />}
+              </button>
             </div>
+
+            {track.preservePitch && (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '6px' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Pitch Shift</span>
+                  <span style={{ fontFamily: 'monospace', color: 'var(--accent-pink)', fontWeight: 700 }}>
+                    {track.pitchShift}x
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0.5}
+                  max={2.0}
+                  step={0.05}
+                  value={track.pitchShift || 1.0}
+                  onChange={(e) => handlePitchChange(parseFloat(e.target.value))}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                  <span>Deep (0.5x)</span>
+                  <span>High (2.0x)</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Lofi Warm Lowpass Filter */}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, FolderPlus, Upload, Trash2, Sliders, Music, FileAudio, Check, AlertCircle, RefreshCw, CloudOff } from 'lucide-react';
+import { FolderPlus, Upload, Trash2, Sliders, Music, FileAudio, Check, AlertCircle, RefreshCw, CloudOff } from 'lucide-react';
 import API_BASE_URL from '../utils/api';
 import { get, set } from 'idb-keyval';
 
@@ -30,7 +30,7 @@ interface DashboardProps {
   onOpenPlayer: (tracks: { id: string; title: string; url: string }[]) => void;
 }
 
-export default function Dashboard({ token, onOpenSession, onOpenPlayer }: DashboardProps) {
+export default function Dashboard({ token, onOpenSession }: DashboardProps) {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -44,13 +44,15 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
   const preloadedStems = [
     {
       _id: 'pre-drums',
+      id: 'pre-drums',
       title: 'Synthwave Drums (Stem)',
       filename: 'drums.mp3',
-      url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', // Backup long track
+      url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
       isPreloaded: true
     },
     {
       _id: 'pre-melody',
+      id: 'pre-melody',
       title: 'Acoustic Guitar (Stem)',
       filename: 'guitar.mp3',
       url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
@@ -58,6 +60,7 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
     },
     {
       _id: 'pre-piano',
+      id: 'pre-piano',
       title: 'Ambient Piano (Stem)',
       filename: 'piano.mp3',
       url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
@@ -74,11 +77,10 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
 
   const fetchTracks = async () => {
     if (!token) {
-      // Guest Mode: load uploaded tracks from localStorage references (if any) or stick to preloaded
       const guestTracksJson = localStorage.getItem('guest_tracks');
       if (guestTracksJson) {
         try {
-          setTracks(JSON.parse(guestTracksJson));
+          setTracks(JSON.parse(guestTracksJson).map((t: any) => ({ ...t, id: t._id })));
         } catch (e) {
           setTracks([]);
         }
@@ -93,22 +95,22 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
       if (response.ok) {
         const data = await response.json();
         
-        // Load offline pending uploads
         const pending = await get('pending_uploads') || [];
         setPendingUploads(pending);
         
         const pendingTracks = pending.map((file: File) => ({
           _id: 'pending-' + file.name + '-' + file.size,
+          id: 'pending-' + file.name + '-' + file.size,
           title: file.name.replace(/\.[^/.]+$/, ""),
           filename: file.name,
-          filepath: URL.createObjectURL(file), // temporary local URL for offline playback
+          filepath: URL.createObjectURL(file),
           size: file.size,
           mimeType: file.type,
           isGuestUrl: true,
           isPendingSync: true
         }));
         
-        setTracks([...pendingTracks, ...data]);
+        setTracks([...pendingTracks, ...data.map((t: any) => ({ ...t, id: t._id }))]);
       }
     } catch (err) {
       console.error('Error fetching tracks:', err);
@@ -117,7 +119,6 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
 
   const fetchSessions = async () => {
     if (!token) {
-      // Guest Mode: fetch sessions from localStorage
       const guestSessionsJson = localStorage.getItem('guest_sessions');
       if (guestSessionsJson) {
         try {
@@ -152,14 +153,13 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
     setSuccess('');
 
     if (!token) {
-      // Guest Mode: Generate client-side Object URL
       const objectUrl = URL.createObjectURL(file);
-      
       const newGuestTrack = {
         _id: 'guest-' + Date.now(),
-        title: file.name.replace(/\.[^/.]+$/, ""), // remove extension
+        id: 'guest-' + Date.now(),
+        title: file.name.replace(/\.[^/.]+$/, ""),
         filename: file.name,
-        filepath: objectUrl, // Use blob url directly
+        filepath: objectUrl,
         size: file.size,
         mimeType: file.type,
         isGuestUrl: true
@@ -168,13 +168,12 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
       const updated = [newGuestTrack, ...tracks];
       setTracks(updated);
       localStorage.setItem('guest_tracks', JSON.stringify(updated));
-      setSuccess(`"${file.name}" loaded locally for guest mixing!`);
+      setSuccess(`"${file.name}" loaded locally!`);
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
 
-    // Authenticated Mode: Upload to backend
     const formData = new FormData();
     formData.append('audio', file);
     formData.append('title', file.name.replace(/\.[^/.]+$/, ""));
@@ -192,14 +191,12 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
       setSuccess('Audio track uploaded successfully!');
       fetchTracks();
     } catch (err: any) {
-      // Offline Fallback for large files (Vercel 413) or network errors
-      console.warn("Upload failed, falling back to local database", err);
       const currentPending = await get('pending_uploads') || [];
       if (!currentPending.find((f: File) => f.name === file.name && f.size === file.size)) {
         currentPending.push(file);
         await set('pending_uploads', currentPending);
       }
-      setError(`Cloud upload failed (${err.message || 'Limit Exceeded'}). Saved "${file.name}" locally for offline mixing!`);
+      setError(`Upload failed. Saved "${file.name}" locally!`);
       fetchTracks();
     } finally {
       setUploading(false);
@@ -243,28 +240,28 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
       setError('');
     }
     if (newPending.length > 0) {
-      setError(`Failed to sync ${newPending.length} track(s). Vercel 4.5MB limit likely exceeded.`);
+      setError(`Failed to sync ${newPending.length} track(s).`);
     }
   };
 
-  const handleDeleteTrack = async (trackId: string, isGuestUrl?: boolean, isPendingSync?: boolean) => {
-    if (isPendingSync) {
-      // Remove from IndexedDB pending list
+  const deleteTrack = async (trackId: string) => {
+    const track = tracks.find(t => t._id === trackId);
+    if (!track) return;
+
+    if ((track as any).isPendingSync) {
       let pending = await get('pending_uploads') || [];
-      // we match by name since our ID was generated as 'pending-' + name + '-' + size
       pending = pending.filter((f: File) => 'pending-' + f.name + '-' + f.size !== trackId);
       await set('pending_uploads', pending);
-      setSuccess('Pending track removed locally.');
+      setSuccess('Pending track removed.');
       fetchTracks();
       return;
     }
 
-    if (!token || isGuestUrl) {
-      // Guest delete
+    if (!token || (track as any).isGuestUrl) {
       const updated = tracks.filter(t => t._id !== trackId);
       setTracks(updated);
       localStorage.setItem('guest_tracks', JSON.stringify(updated));
-      setSuccess('Track removed locally.');
+      setSuccess('Track removed.');
       return;
     }
 
@@ -274,137 +271,16 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
-        setSuccess('Track deleted successfully.');
+        setSuccess('Track deleted.');
         fetchTracks();
-      } else {
-        setError('Failed to delete track.');
       }
     } catch (err) {
-      console.error(err);
-      setError('Connection error deleting track.');
+      setError('Error deleting track.');
     }
   };
 
-  const handleCreateSession = () => {
-    if (!sessionName.trim()) {
-      setError('Please provide a session name.');
-      return;
-    }
-
-    // Create an empty session structure
-    const newSession: Session = {
-      _id: '',
-      name: sessionName.trim(),
-      masterVolume: 1.0,
-      tracks: [],
-      updatedAt: new Date().toISOString()
-    };
-
-    const libraryTracks = [
-      ...preloadedStems.map(s => ({ id: s._id, title: s.title, url: s.url })),
-      ...tracks.map(t => ({
-        id: t._id,
-        title: t.title,
-        url: (t as any).isGuestUrl ? t.filepath : `${API_URL}/tracks/${t._id}/file`
-      }))
-    ];
-
-    onOpenSession(newSession, [], libraryTracks);
-  };
-
-  const handleQuickMix = (trackItem: any) => {
-    const newSession: Session = {
-      _id: '',
-      name: `Mix: ${trackItem.title}`,
-      masterVolume: 1.0,
-      tracks: [
-        {
-          trackId: trackItem._id,
-          title: trackItem.title,
-          volume: 0.8,
-          pan: 0.0,
-          mute: false,
-          solo: false,
-          eqLow: 0,
-          eqMid: 0,
-          eqHigh: 0,
-          vocalExtraction: 'none',
-          noiseGateThreshold: -100,
-          pan8dEnabled: false,
-          pan8dSpeed: 0.1,
-          playbackRate: 1.0,
-          lofiEnabled: false
-        }
-      ],
-      updatedAt: new Date().toISOString()
-    };
-
-    const matchedUrl = trackItem.isPreloaded 
-      ? trackItem.url 
-      : trackItem.isGuestUrl 
-        ? trackItem.filepath 
-        : `${API_URL}/tracks/${trackItem._id}/file`;
-
-    const tracksToLoad = [
-      {
-        id: trackItem._id,
-        title: trackItem.title,
-        url: matchedUrl
-      }
-    ];
-
-    const libraryTracks = [
-      ...preloadedStems.map(s => ({ id: s._id, title: s.title, url: s.url })),
-      ...tracks.map(t => ({
-        id: t._id,
-        title: t.title,
-        url: (t as any).isGuestUrl ? t.filepath : `${API_URL}/tracks/${t._id}/file`
-      }))
-    ];
-
-    onOpenSession(newSession, tracksToLoad, libraryTracks);
-  };
-
-  const handleOpenExistingSession = (session: Session) => {
-    // Map tracks in session to URLs
-    const tracksToLoad = session.tracks.map((t: any) => {
-      // Find track URL from loaded libraries
-      let url = '';
-      const matchedPre = preloadedStems.find(p => p._id === t.trackId);
-      if (matchedPre) {
-        url = matchedPre.url;
-      } else {
-        const matchedLib = tracks.find(l => l._id === t.trackId);
-        if (matchedLib) {
-          // If guest URL it is stored directly in filepath, else backend URL
-          url = (matchedLib as any).isGuestUrl 
-            ? matchedLib.filepath 
-            : `${API_URL}/tracks/${matchedLib._id}/file`;
-        }
-      }
-
-      return {
-        id: t.trackId,
-        title: t.title || 'Studio Track',
-        url: url
-      };
-    }).filter(t => t.url !== '');
-
-    const libraryTracks = [
-      ...preloadedStems.map(s => ({ id: s._id, title: s.title, url: s.url })),
-      ...tracks.map(t => ({
-        id: t._id,
-        title: t.title,
-        url: (t as any).isGuestUrl ? t.filepath : `${API_URL}/tracks/${t._id}/file`
-      }))
-    ];
-
-    onOpenSession(session, tracksToLoad, libraryTracks);
-  };
-
-  const handleDeleteSession = async (sessionId: string) => {
+  const deleteSession = async (sessionId: string) => {
     if (!token) {
-      // Guest delete
       const updated = sessions.filter(s => s._id !== sessionId);
       setSessions(updated);
       localStorage.setItem('guest_sessions', JSON.stringify(updated));
@@ -424,10 +300,91 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
     }
   };
 
+  const handleCreateSession = () => {
+    if (!sessionName.trim()) {
+      setError('Please provide a session name.');
+      return;
+    }
+
+    const newSession: Session = {
+      _id: '',
+      name: sessionName.trim(),
+      masterVolume: 1.0,
+      tracks: [],
+      updatedAt: new Date().toISOString()
+    };
+
+    const library = [
+      ...preloadedStems.map(s => ({ id: s.id, title: s.title, url: s.url })),
+      ...tracks.map(track => ({
+        id: track._id || (track as any).id,
+        title: track.title,
+        url: (track as any).isGuestUrl ? track.filepath : `${API_URL}/tracks/${track._id || (track as any).id}/file`
+      }))
+    ];
+
+    onOpenSession(newSession, [], library);
+  };
+
+  const handleQuickMix = (trackItem: any) => {
+    const newSession: Session = {
+      _id: '',
+      name: `Mix: ${trackItem.title}`,
+      masterVolume: 1.0,
+      tracks: [
+        {
+          trackId: trackItem.id || trackItem._id,
+          title: trackItem.title,
+          volume: 0.8,
+          pan: 0.0,
+          mute: false,
+          solo: false,
+          eqLow: 0,
+          eqMid: 0,
+          eqHigh: 0,
+          vocalExtraction: 'none',
+          noiseGateThreshold: -100,
+          pan8dEnabled: false,
+          pan8dSpeed: 0.1,
+          playbackRate: 1.0,
+          pitchShift: 1.0,
+          preservePitch: true,
+          lofiEnabled: false,
+          fxBlend: 1.0
+        }
+      ],
+      updatedAt: new Date().toISOString()
+    };
+
+    const matchedUrl = trackItem.isPreloaded 
+      ? trackItem.url 
+      : trackItem.isGuestUrl 
+        ? trackItem.filepath 
+        : `${API_URL}/tracks/${trackItem.id || trackItem._id}/file`;
+
+    const tracksToLoad = [
+      {
+        id: trackItem.id || trackItem._id,
+        title: trackItem.title,
+        url: matchedUrl
+      }
+    ];
+
+    const libraryTracks = [
+      ...preloadedStems.map(s => ({ id: s.id || s._id, title: s.title, url: s.url })),
+      ...tracks.map(t => ({
+        id: t._id || (t as any).id,
+        title: t.title,
+        url: (t as any).isGuestUrl ? t.filepath : `${API_URL}/tracks/${t._id || (t as any).id}/file`
+      }))
+    ];
+
+    onOpenSession(newSession, tracksToLoad, libraryTracks);
+  };
+
   return (
     <div className="page-container" style={{ maxWidth: '1200px', margin: '0 auto 40px auto', padding: '0 16px' }}>
       
-      {/* Messages */}
       {error && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 16px', borderRadius: '8px', backgroundColor: 'rgba(255, 0, 127, 0.1)', border: '1px solid rgba(255, 0, 127, 0.2)', color: 'var(--accent-pink)', marginBottom: '20px' }}>
           <AlertCircle size={16} />
@@ -443,10 +400,7 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
 
       <div className="dashboard-grid">
         
-        {/* Left Column: Create & Load Projects */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
-          
-          {/* New Session Panel */}
           <div className="glass-panel" style={{ padding: '24px' }}>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.15rem', marginBottom: '16px' }}>
               <FolderPlus size={18} style={{ color: 'var(--accent-primary)' }} />
@@ -474,32 +428,8 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
                 Create
               </button>
             </div>
-            
-            <div style={{ marginTop: '24px', borderTop: '1px solid var(--card-border)', paddingTop: '20px' }}>
-              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.15rem', marginBottom: '16px' }}>
-                <Music size={18} style={{ color: 'var(--accent-primary)' }} />
-                Music Player
-              </h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
-                Listen to your library, manage playlists, and mix directly from the player.
-              </p>
-              <button 
-                onClick={() => {
-                  const combined = [...preloadedStems, ...tracks].map(t => ({
-                    id: t._id,
-                    title: t.title,
-                    url: (t as any).filepath || (t as any).url || ''
-                  }));
-                  onOpenPlayer(combined);
-                }} 
-                className="glow-btn" style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '8px' }}
-              >
-                <Play size={16} /> Open Music Player
-              </button>
-            </div>
           </div>
 
-          {/* Project Sessions List */}
           <div className="glass-panel" style={{ padding: '24px', flex: 1 }}>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.15rem', marginBottom: '16px' }}>
               <Sliders size={18} style={{ color: 'var(--accent-secondary)' }} />
@@ -511,45 +441,79 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
                 No saved sessions found.
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '380px', overflowY: 'auto' }}>
-                {sessions.map((session) => (
-                  <div key={session._id} style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '12px 16px',
-                    borderRadius: '8px',
-                    backgroundColor: 'var(--bg-secondary)',
-                    border: '1px solid var(--card-border)'
-                  }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{session.name}</span>
-                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                        Tracks: {session.tracks?.length || 0} • {new Date(session.updatedAt).toLocaleDateString()}
-                      </span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
+                {sessions.map(session => (
+                  <div 
+                    key={session._id} 
+                    className="glass-card"
+                    onClick={() => {
+                      const library = [
+                        ...preloadedStems.map(s => ({ id: s.id || s._id, title: s.title, url: s.url })),
+                        ...tracks.map(t => ({
+                          id: t._id || (t as any).id,
+                          title: t.title,
+                          url: (t as any).isGuestUrl ? t.filepath : `${API_URL}/tracks/${t._id || (t as any).id}/file`
+                        }))
+                      ];
+                      
+                      const tracksToLoad = tracks
+                        .filter(t => session.tracks?.some((st: any) => st.trackId === t._id))
+                        .map(t => ({
+                          id: t._id || (t as any).id,
+                          title: t.title,
+                          url: (t as any).isGuestUrl ? t.filepath : `${API_URL}/tracks/${t._id || (t as any).id}/file`
+                        }));
+
+                      onOpenSession(session, tracksToLoad, library);
+                    }}
+                    style={{ padding: '24px', cursor: 'pointer', display: 'flex', flexDirection: 'column', height: '100%' }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                      <div style={{
+                        width: '48px',
+                        height: '48px',
+                        borderRadius: '12px',
+                        backgroundColor: 'rgba(0, 210, 211, 0.15)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--accent-primary)'
+                      }}>
+                        <Music size={24} />
+                      </div>
+                      <div style={{ 
+                        padding: '4px 8px', 
+                        backgroundColor: 'var(--bg-primary)', 
+                        borderRadius: '6px',
+                        fontSize: '0.7rem',
+                        color: 'var(--text-secondary)'
+                      }}>
+                        {session.tracks?.length || 0} tracks
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    
+                    <h3 style={{ fontSize: '1.2rem', marginBottom: '8px' }}>{session.name}</h3>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      {session.updatedAt ? new Date(session.updatedAt).toLocaleDateString() : ''}
+                    </div>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px' }}>
                       <button 
-                        onClick={() => handleOpenExistingSession(session)}
-                        className="glow-btn"
-                        style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
-                      >
-                        <Play size={12} fill="white" />
-                        Open
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteSession(session._id)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--text-muted)',
-                          cursor: 'pointer',
-                          padding: '6px'
-                        }}
+                        onClick={(e) => { e.stopPropagation(); deleteSession(session._id); }}
                         className="hover-lift"
+                        style={{ background: 'none', border: 'none', color: 'var(--accent-pink)', cursor: 'pointer', padding: '8px' }}
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={18} />
                       </button>
+                      <div 
+                        className="glow-btn"
+                        style={{
+                          padding: '8px 16px',
+                          fontSize: '0.85rem',
+                        }}
+                      >
+                        Open Mix
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -558,16 +522,13 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
           </div>
         </div>
 
-        {/* Right Column: Audio Library */}
         <div className="glass-panel" style={{ padding: '28px' }}>
-          
           <div className="library-header">
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem' }}>
               <Music size={18} style={{ color: 'var(--accent-primary)' }} />
               Audio Library
             </h3>
 
-            {/* Hidden upload input */}
             <input 
               type="file" 
               ref={fileInputRef} 
@@ -613,31 +574,41 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {preloadedStems.map(stem => (
-                  <div key={stem._id} className="track-item-row" style={{
-                    backgroundColor: 'rgba(127, 0, 255, 0.05)',
-                    border: '1px solid rgba(127, 0, 255, 0.15)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                  <div 
+                    key={stem.id} 
+                    className="track-item-row hover-lift glass-card" 
+                    onClick={() => handleQuickMix(stem)}
+                    style={{
+                      padding: '16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer',
+                      border: '1px solid rgba(0, 210, 211, 0.15)',
+                      backgroundColor: 'rgba(0, 210, 211, 0.05)',
+                      marginBottom: '8px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
                       <div style={{ color: 'var(--accent-secondary)', flexShrink: 0 }}>
-                        <FileAudio size={18} />
+                        <FileAudio size={20} />
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stem.title}</span>
-                        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Demo Loop Stem</span>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stem.title}</span>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Demo Loop Stem</span>
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                      <span style={{ fontSize: '0.65rem', backgroundColor: 'var(--accent-secondary)', color: 'white', padding: '2px 7px', borderRadius: '10px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                      <span style={{ fontSize: '0.65rem', backgroundColor: 'var(--accent-secondary)', color: 'white', padding: '3px 8px', borderRadius: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>
                         Preloaded
                       </span>
-                      <button 
-                        onClick={() => handleQuickMix(stem)}
+                      <div 
                         className="glow-btn"
-                        style={{ padding: '5px 10px', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '5px', borderRadius: '6px' }}
+                        style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '5px', borderRadius: '8px' }}
                       >
-                        <Sliders size={11} />
+                        <Sliders size={12} />
                         Mix
-                      </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -672,17 +643,26 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '320px', overflowY: 'auto' }}>
                   {tracks.map(track => (
-                    <div key={track._id} className="track-item-row" style={{
-                      backgroundColor: 'var(--bg-secondary)',
-                      border: '1px solid var(--card-border)'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                    <div 
+                      key={track._id} 
+                      className="track-item-row hover-lift glass-card"
+                      onClick={() => handleQuickMix(track)}
+                      style={{
+                        padding: '16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        cursor: 'pointer',
+                        marginBottom: '8px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
                         <div style={{ color: 'var(--accent-primary)', flexShrink: 0 }}>
-                          <FileAudio size={18} />
+                          <FileAudio size={20} />
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                          <span style={{ fontSize: '0.85rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.title}</span>
-                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ fontSize: '0.9rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.title}</span>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             {(track.size / (1024 * 1024)).toFixed(1)} MB • {track.filename.split('.').pop()?.toUpperCase()}
                             {(track as any).isPendingSync && (
                               <span style={{ color: 'var(--accent-pink)', display: 'flex', alignItems: 'center', gap: '2px', marginLeft: '6px' }}>
@@ -693,20 +673,19 @@ export default function Dashboard({ token, onOpenSession, onOpenPlayer }: Dashbo
                         </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                        <button 
-                          onClick={() => handleQuickMix(track)}
+                        <div 
                           className="glow-btn"
-                          style={{ padding: '5px 10px', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '5px', borderRadius: '6px' }}
+                          style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '5px', borderRadius: '8px' }}
                         >
-                          <Sliders size={11} />
+                          <Sliders size={12} />
                           Mix
-                        </button>
+                        </div>
                         <button 
-                          onClick={() => handleDeleteTrack(track._id, (track as any).isGuestUrl, (track as any).isPendingSync)}
+                          onClick={(e) => { e.stopPropagation(); deleteTrack(track._id); }}
                           style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '6px', flexShrink: 0 }}
                           className="hover-lift"
                         >
-                          <Trash2 size={15} style={{ color: 'var(--accent-pink)' }} />
+                          <Trash2 size={16} style={{ color: 'var(--accent-pink)' }} />
                         </button>
                       </div>
                     </div>
